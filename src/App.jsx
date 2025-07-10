@@ -21,7 +21,7 @@ import RemoteUploadPage from './RemoteUploadPage';
 import CircularProgress from "./components/CircularProgress";
 
 // Importación de Assets y Estilos
-import logo from "./assets/logo-luitania2.png";
+import logo from "./assets/logo-luitania1.png";
 import "./App.css";
 
 // ====================================================================================
