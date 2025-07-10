@@ -1,0 +1,34 @@
+/* src/App.css */
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Quicksand:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-luitania-cream text-luitania-textbrown font-quicksand antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-lora font-bold text-luitania-textbrown;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-8 py-3 bg-luitania-sage text-white font-semibold rounded-xl shadow-soft transition-all duration-300 ease-in-out;
+  }
+  .btn-primary:hover {
+    @apply bg-luitania-textbrown shadow-lg transform -translate-y-0.5;
+  }
+  .btn-primary:disabled {
+    @apply bg-luitania-warmgray opacity-60 cursor-not-allowed shadow-none transform-none;
+  }
+
+  .btn-secondary {
+     @apply px-6 py-2 bg-transparent border border-luitania-sage text-luitania-sage font-semibold rounded-xl shadow-soft transition-all duration-300;
+  }
+  .btn-secondary:hover {
+     @apply bg-luitania-sage text-white;
+  }
+}
