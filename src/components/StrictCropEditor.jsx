@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabaseClient';
 import CircularProgress from './CircularProgress';
 import RemoteUploader from './RemoteUploader';
 import { calcularRecorteAjustado } from './handleConfirmCrop';
+import { getFinalCropFromView } from "../utils/getFinalCropFromView";
 
 const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedidoId, onCropsConfirmed }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -143,7 +144,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
               initialCrop: img.initialCrop
             });
 
-            const adjustedCropParams = calcularRecorteAjustado(img);
+            const adjustedCropParams = getFinalCropFromView(img);
             const formatoAsignado = img.assignedFormat || formatosDisponibles[0];
             const printSize = aspectoPorTamanio[formatoAsignado] || aspectoPorTamanio["10x15"];
             const longSide = Math.max(printSize.width, printSize.height);
