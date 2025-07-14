@@ -107,13 +107,27 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   
   // --- MANEJADOR SIMPLE ---
   // Esta función ahora es "tonta". Solo guarda los cambios en el estado.
-  const handleImageUpdate = useCallback((index, updates) => {
-    setImages(currentImages =>
-      currentImages.map((img, i) =>
-        i === index ? { ...img, ...updates } : img
-      )
-    );
-  }, [setImages]);
+const handleImageUpdate = useCallback((index, updates) => {
+  setImages(currentImages =>
+    currentImages.map((img, i) => {
+      if (i !== index) return img;
+
+      // Previene sobrescribir un zoomReal válido con uno inválido
+      const incomingZoomReal = updates.zoomReal ?? img.zoomReal;
+      const finalZoomReal = incomingZoomReal < 1 ? img.zoomReal : incomingZoomReal;
+
+      return {
+        ...img,
+        ...updates,
+        zoomReal: finalZoomReal
+      };
+    })
+  );
+}, [setImages]);
+
+
+  
+
 
   // --- FUNCIÓN "CEREBRO" FINAL ---
   // Lee los datos frescos desde la ref y hace todos los cálculos al momento del clic.
@@ -121,10 +135,11 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
     setIsLoading(true);
     setUploadProgress(0);
     try {
+        imagesRef.current = [...images]; // Fuerza sincronización antes del cálculo
         const aspectoPorTamanio = { "10x15": { width: 1000, height: 1500 }, "13x18": { width: 1300, height: 1800 }, "15x20": { width: 1500, height: 2000 }, "carta": { width: 1275, height: 1650 }, "A4": { width: 1240, height: 1754 } };
         const processedImagesData = [];
         const currentImages = imagesRef.current;
-
+        
         for (let i = 0; i < currentImages.length; i++) {
             const img = currentImages[i];
             //debugger; // <--- PONLO AQUÍ
@@ -219,7 +234,16 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
         </div>
       </div>
       {showQRModal && (<RemoteUploader pedidoId={pedidoId} onClose={() => setShowQRModal(false)} />)}
-      {isModalOpen && (<EditModal imageData={images[editingImageIndex]} onSave={(customizations) => handleImageUpdate(editingImageIndex, customizations)} onClose={handleCloseEditModal} />)}
+      {isModalOpen && (
+        <EditModal
+          imageData={images[editingImageIndex]}
+          onSave={(customizations) => {
+            console.log("🛬 Cambios recibidos desde modal:", customizations);
+            handleImageUpdate(editingImageIndex, customizations);
+          }}
+          onClose={handleCloseEditModal}
+        />
+      )}
     </>
   );
 };

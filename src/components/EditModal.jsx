@@ -126,19 +126,24 @@ const EditModal = ({ imageData, onSave, onClose }) => {
   const { scaledWidth, scaledHeight, initialX, initialY, imgX, imgY } = calculatedProps;
 
   const handleSave = () => {
-    const zoomToCover = Math.max(cropBox.width / image.width, cropBox.height / image.height);
-    const zoomReal = zoomToCover * zoom;
+  // ✅ Corrección: Zoom real debe ser directamente proporcional al zoom aplicado
+  const zoomToCover = Math.max(cropBox.width / image.width, cropBox.height / image.height);
+  const zoomReal = zoom / zoomToCover;
 
-    onSave({
-      imagePosition,
-      zoom,
-      zoomReal,
-      filter,
-      hasBorder,
-      isFlipped
-    });
-    onClose();
-  };
+  console.log("🧩 Confirmación desde modal", zoom, zoomReal, imagePosition);
+
+  onSave({
+    imagePosition,
+    zoom,
+    zoomReal,
+    filter,
+    hasBorder,
+    isFlipped
+  });
+
+  onClose();
+};
+
 
 
   const limitDrag = (pos) => {
