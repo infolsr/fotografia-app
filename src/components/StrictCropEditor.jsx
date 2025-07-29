@@ -76,7 +76,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             cropHeight = Math.round(cropWidth / aspectoMarco);
           }
           const cropParams = { x: Math.round((naturalWidth - cropWidth) / 2), y: Math.round((naturalHeight - cropHeight) / 2), width: cropWidth, height: cropHeight };
-          
+          console.log("🟢 [StrictCropEditor] InitialCrop generado para imagen", imageToInit.id, cropParams);
           resolve({
             ...imageToInit,
             imagePosition: { x: 0, y: 0 },
@@ -113,14 +113,18 @@ const handleImageUpdate = useCallback((index, updates) => {
       if (i !== index) return img;
 
       // Previene sobrescribir un zoomReal válido con uno inválido
-      const incomingZoomReal = updates.zoomReal ?? img.zoomReal;
-      const finalZoomReal = incomingZoomReal < 1 ? img.zoomReal : incomingZoomReal;
+     const incomingZoomReal = typeof updates.zoomReal === 'number' && !isNaN(updates.zoomReal)
+        ? updates.zoomReal
+        : img.zoomReal ?? 1;
+
+      const finalZoomReal = Math.max(1, incomingZoomReal); // asegura que sea al menos 1
 
       return {
         ...img,
         ...updates,
         zoomReal: finalZoomReal
       };
+
     })
   );
 }, [setImages]);
@@ -158,6 +162,13 @@ const handleImageUpdate = useCallback((index, updates) => {
               imagePosition: img.imagePosition,
               initialCrop: img.initialCrop
             });
+
+            if (!img.zoomReal || isNaN(img.zoomReal)) {
+              console.warn("⚠️ [StrictCropEditor] zoomReal no válido, se usará 1. Imagen:", img.id);
+              console.log("🧩 Imagen completa al fallar zoomReal:", JSON.stringify(img, null, 2));
+              img.zoomReal = 1;
+            }
+
 
             const adjustedCropParams = getFinalCropFromView(img);
             const formatoAsignado = img.assignedFormat || formatosDisponibles[0];
@@ -230,7 +241,16 @@ const handleImageUpdate = useCallback((index, updates) => {
         </div>
         <div className="col-span-full mt-4 flex justify-center space-x-4">
           <button onClick={() => window.location.reload()} className="btn-secondary" disabled={isLoading}>Cancelar</button>
-          <button onClick={handleConfirmAndContinue} className="btn-primary" disabled={isLoading}>Confirmar Recortes y Continuar</button>
+          <button
+            onClick={() => {
+              console.log("🔎 Estado actual de images antes de confirmar:", images);
+              handleConfirmAndContinue();
+            }}
+            className="btn-primary"
+            disabled={isLoading}
+          >
+            Confirmar Recortes y Continuar
+          </button>
         </div>
       </div>
       {showQRModal && (<RemoteUploader pedidoId={pedidoId} onClose={() => setShowQRModal(false)} />)}
@@ -240,6 +260,8 @@ const handleImageUpdate = useCallback((index, updates) => {
           onSave={(customizations) => {
             console.log("🛬 Cambios recibidos desde modal:", customizations);
             handleImageUpdate(editingImageIndex, customizations);
+            console.log("📦 Estado actualizado de images tras guardar:", imagesRef.current);
+
           }}
           onClose={handleCloseEditModal}
         />

@@ -20,7 +20,11 @@ function rotateSize(width, height, rotation) {
 export async function processImage(imageUrl, cropParams, options = {}, outputSize) {
   // --- LOG DE DEBUG 0: PARÁMETROS DE ENTRADA ---
   console.log("--- INICIANDO processImage ---");
-  console.log("Recibiendo Parámetros:", { imageUrl, cropParams, options, outputSize });
+  // — Log JSON completo de entrada al procesamiento —
+  console.log(
+    "🔄 [cropImage] Entrada processImage:",
+    JSON.stringify({ imageUrl, cropParams, options, outputSize })
+  );
 
   const image = await createImage(imageUrl);
   const { filter, isFlipped, hasBorder } = options;
@@ -93,7 +97,12 @@ export async function processImage(imageUrl, cropParams, options = {}, outputSiz
   resizedCanvas.height = outputSize.height;
   
   // --- LOG DE DEBUG 4: DIMENSIONES DE SALIDA ---
-  console.log("PASO 4: Redimensionando A:", { width: resizedCanvas.width, height: resizedCanvas.height });
+  //console.log("PASO 4: Redimensionando A:", { width: resizedCanvas.width, height: resizedCanvas.height });
+  // — Log JSON del tamaño final antes de exportar blob —
+  console.log(
+    "🔄 [cropImage] outputSize:",
+    JSON.stringify(outputSize)
+  );
   
   resizedCtx.drawImage(currentCanvas, 0, 0, resizedCanvas.width, resizedCanvas.height);
 

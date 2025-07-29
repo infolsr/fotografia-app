@@ -37,30 +37,38 @@ const ReviewOrder = ({ images, selectedPack, onBack, onCheckout }) => {
       </div>
       
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
-        {images.map((img, index) => (
-          <div key={img.id || index} className="bg-gray-200 p-2 shadow-lg rounded-lg flex justify-center items-center">
-            {console.log("🟡 Imagen mostrada en ReviewOrder", {
-  id: img.id,
-  url: img.url,
-  position: img.imagePosition,
-  zoom: img.zoom,
-  format: img.assignedFormat
-})}
-            {/* --- INICIO: CÓDIGO CORREGIDO --- */}
-            {/* Se pasan todas las propiedades necesarias para una previsualización correcta */}
-            <CropPreview
-              imageUrl={img.url}
-              formato={img.assignedFormat || selectedPack.pack_items[0].formato_impresion}
-              zoom={1}
-              imagePosition={{ x: 0, y: 0 }}
-              filter={'ninguno'}
-              isFlipped={false}
-              hasBorder={false}
-              isDraggable={false}
-            />
-            {/* --- FIN: CÓDIGO CORREGIDO --- */}
-          </div>
-        ))}
+        {images.map((img, index) => {
+          // — Log JSON completo de la imagen en revisión —
+          console.log(
+            "🟡 [ReviewOrder] img completo:",
+            JSON.stringify({
+              id: img.id,
+              url: img.url,
+              imagePosition: img.imagePosition,
+              zoom: img.zoom,
+              filter: img.filter,
+              hasBorder: img.hasBorder,
+              isFlipped: img.isFlipped,
+              assignedFormat: img.assignedFormat
+            })
+          );
+          return (
+            <div key={img.id || index} className="bg-gray-200 p-2 shadow-lg rounded-lg flex justify-center items-center">
+              {/* Se pasan todas las propiedades necesarias para una previsualización correcta */}
+              <CropPreview
+                index={index}
+                imageUrl={img.url}
+                formato={img.assignedFormat || selectedPack.pack_items[0].formato_impresion}
+                zoom={img.zoom}
+                imagePosition={img.imagePosition}
+                filter={img.filter}
+                isFlipped={img.isFlipped}
+                hasBorder={img.hasBorder}
+                isDraggable={false}
+              />
+            </div>
+          );
+        })}
       </div>
       
       <div className="text-center mt-4 pb-8">

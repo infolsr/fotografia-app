@@ -125,10 +125,19 @@ const EditModal = ({ imageData, onSave, onClose }) => {
 
   const { scaledWidth, scaledHeight, initialX, initialY, imgX, imgY } = calculatedProps;
 
-  const handleSave = () => {
-  // ✅ Corrección: Zoom real debe ser directamente proporcional al zoom aplicado
+const handleSave = () => {
+  if (!image || !image.width || !cropBox.width) {
+    console.warn("⚠️ No se puede calcular zoomReal: dimensiones inválidas");
+  }
+
   const zoomToCover = Math.max(cropBox.width / image.width, cropBox.height / image.height);
-  const zoomReal = zoom / zoomToCover;
+  let zoomReal = zoomToCover * zoom;
+
+  // Validación fuerte
+  if (!zoomReal || isNaN(zoomReal) || zoomReal === Infinity || zoomToCover === 0) {
+    console.warn("⚠️ ZoomReal inválido. Se forzará 1 como fallback");
+    zoomReal = 1;
+  }
 
   console.log("🧩 Confirmación desde modal", zoom, zoomReal, imagePosition);
 
@@ -143,7 +152,6 @@ const EditModal = ({ imageData, onSave, onClose }) => {
 
   onClose();
 };
-
 
 
   const limitDrag = (pos) => {
@@ -261,7 +269,13 @@ const EditModal = ({ imageData, onSave, onClose }) => {
           <div className="flex-grow"></div>
           <div className="flex flex-col sm:flex-row gap-3">
             <button onClick={onClose} className="btn-secondary w-full justify-center">Cancelar</button>
-            <button onClick={handleSave} className="btn-primary w-full justify-center">Guardar Cambios</button>
+            <button
+              onClick={handleSave}
+              className="btn-primary w-full justify-center"
+              disabled={!image?.width || !cropBox?.width}
+            >
+              Guardar Cambios
+            </button>
           </div>
         </div>
       </div>

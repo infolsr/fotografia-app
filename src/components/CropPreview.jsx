@@ -15,17 +15,21 @@ const CropPreview = ({
   isFlipped = false,
   onImageUpdate = () => {},
 }) => {
+  console.log("🔴 [CropPreview] Props:", {index,imageUrl,formato,imagePosition,zoom,filter,hasBorder,isFlipped});
   const [image] = useImage(imageUrl, 'Anonymous');
   const imageRef = useRef(null);
   const [stageSize, setStageSize] = useState({ width: 200, height: 300 });
   const [calculatedProps, setCalculatedProps] = useState({
     scaledWidth: 0, scaledHeight: 0, initialX: 0, initialY: 0, imgX: 0, imgY: 0,
   });
+  const lastZoomRealRef = useRef(null);
 
   const aspectoPorTamanio = {
     "10x15": 10 / 15, "13x18": 13 / 18, "15x20": 15 / 20,
     "carta": 8.5 / 11, "A4": 210 / 297,
   };
+
+  //console.log("🔴 [CropPreview] Params para preview:", { initialCrop, imagePosition, zoom });
 
   useEffect(() => {
     if (!image) return;
@@ -43,6 +47,7 @@ const CropPreview = ({
     if (!image || stageSize.width === 0) return;
     const zoomToCover = Math.max(stageSize.width / image.width, stageSize.height / image.height);
     const finalZoom = zoomToCover * zoom;
+    
     const scaledWidth = image.width * finalZoom;
     const scaledHeight = image.height * finalZoom;
 
@@ -93,7 +98,7 @@ const CropPreview = ({
         },
       });
     }
-  }, [zoom, image, stageSize, imagePosition, onImageUpdate]);
+  }, [zoom, image, stageSize, onImageUpdate]);
 
   useEffect(() => {
     if (!image || !stageSize.width) return;
@@ -101,7 +106,10 @@ const CropPreview = ({
     const finalZoom = zoomToCover * zoom;
 
     // Guardamos este zoom real de visualización
-    onImageUpdate(index, { zoomReal: finalZoom });
+    if (lastZoomRealRef.current !== finalZoom){
+      onImageUpdate(index, { zoomReal: finalZoom });
+      lastZoomRealRef.current = finalZoom;
+    }
   }, [image, stageSize, zoom, onImageUpdate]);
 
   const { scaledWidth, scaledHeight, imgX, imgY } = calculatedProps;
@@ -152,10 +160,11 @@ const CropPreview = ({
             const centerY = (stageSize.height - scaledHeight) / 2;
             const pixelOffsetX = e.target.x() - centerX;
             const pixelOffsetY = e.target.y() - centerY;
-            const x_bound = (scaledWidth - stageSize.width) / 2;
-            const y_bound = (scaledHeight - stageSize.height) / 2;
-            const normalizedX = x_bound > 0 ? pixelOffsetX / x_bound : 0;
-            const normalizedY = y_bound > 0 ? pixelOffsetY / y_bound : 0;
+             // — Ajuste de normalización: usar el excedente total, no solo la mitad —
+            const totalXBound = scaledWidth - stageSize.width;
+            const totalYBound = scaledHeight - stageSize.height;
+            const normalizedX = totalXBound > 0 ? pixelOffsetX / totalXBound : 0;
+            const normalizedY = totalYBound > 0 ? pixelOffsetY / totalYBound : 0;
 
             onImageUpdate(index, { imagePosition: { x: normalizedX, y: normalizedY } });
           }}

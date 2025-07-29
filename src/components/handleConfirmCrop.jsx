@@ -2,6 +2,14 @@
 
 export const calcularRecorteAjustado = (img) => {
   const { initialCrop, imagePosition = { x: 0, y: 0 } } = img;
+
+// — Inserta aquí el log de entrada a recorte ajustado —
+console.log("🔍 [calcularRecorteAjustado] Entrada:", {
+id: img.id,
+initialCrop: img.initialCrop,
+imagePosition: img.imagePosition,
+zoomReal: img.zoomReal
+});
   const zoomReal = img.zoomReal ?? 1;
 
 
@@ -50,6 +58,18 @@ export const calcularRecorteAjustado = (img) => {
     "Nuevo Y": newY
   });
   console.log("🟦 Parámetros finales enviados a cropImage:", adjustedCropParams);
+
+  // — Log JSON completo del recorte final —
+  console.log(
+    "🎯 [calcularRecorteAjustado] finalCrop JSON:",
+    JSON.stringify({
+      id: img.id,
+      adjustedCropParams,
+      initialCrop,
+      imagePosition,
+      zoomReal
+    })
+  );
 
   return adjustedCropParams;
 };
