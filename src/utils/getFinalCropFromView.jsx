@@ -1,36 +1,64 @@
+// En getFinalCropFromView.jsx
+
 export const getFinalCropFromView = (img) => {
-  const { initialCrop, imagePosition = { x: 0, y: 0 }, zoomReal = 1 } = img;
+  const { 
+    imagePosition = { x: 0, y: 0 }, 
+    zoom = 1, 
+    naturalWidth, 
+    naturalHeight, 
+    assignedFormat = "10x15",
+  } = img;
 
-  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  // Si no tenemos las dimensiones originales, no podemos continuar.
+  if (!naturalWidth || !naturalHeight) {
+    console.error("Faltan naturalWidth/naturalHeight para el cálculo del recorte.");
+    return { x: 0, y: 0, width: 100, height: 150, rotation: 0 };
+  }
 
-  const visibleWidth = initialCrop.width / zoomReal;
-  const visibleHeight = initialCrop.height / zoomReal;
+  // 1. Obtener la relación de aspecto del formato (ej: 10/15)
+  const cropFormats = {
+    "10x15": 10 / 15, "13x18": 13 / 18, "15x20": 15 / 20,
+    "carta": 8.5 / 11, "A4": 210 / 297
+  };
+  let targetAspect = cropFormats[assignedFormat];
+  const imageAspect = naturalWidth / naturalHeight;
+  if ((imageAspect > 1 && targetAspect < 1) || (imageAspect < 1 && targetAspect > 1)) {
+    targetAspect = 1 / targetAspect;
+  }
 
-  const maxOffsetX = (initialCrop.width - visibleWidth) / 2;
-  const maxOffsetY = (initialCrop.height - visibleHeight) / 2;
+  // 2. Calcular el área de recorte base que "cubre" la imagen original
+  let baseCropWidth = naturalWidth;
+  let baseCropHeight = Math.round(baseCropWidth / targetAspect);
+  if (baseCropHeight > naturalHeight) {
+    baseCropHeight = naturalHeight;
+    baseCropWidth = Math.round(baseCropHeight * targetAspect);
+  }
+  const baseCropX = (naturalWidth - baseCropWidth) / 2;
+  const baseCropY = (naturalHeight - baseCropHeight) / 2;
 
-  const offsetX = clamp(imagePosition.x, -1, 1) * maxOffsetX;
-  const offsetY = clamp(imagePosition.y, -1, 1) * maxOffsetY;
+  // 3. Aplicar el zoom del usuario a esa área base
+  const visibleWidth = baseCropWidth / zoom;
+  const visibleHeight = baseCropHeight / zoom;
 
-  const newX = Math.round(initialCrop.x + (initialCrop.width - visibleWidth) / 2 + offsetX);
-  const newY = Math.round(initialCrop.y + (initialCrop.height - visibleHeight) / 2 + offsetY);
+  // 4. Calcular el desplazamiento (paneo) del usuario
+  const maxOffsetX = (baseCropWidth - visibleWidth) / 2;
+  const maxOffsetY = (baseCropHeight - visibleHeight) / 2;
+  const offsetX = imagePosition.x * maxOffsetX;
+  const offsetY = imagePosition.y * maxOffsetY;
+  
+  // 5. Calcular la posición final del recorte en el sistema de coordenadas de la imagen original
+  const finalX = (baseCropX + baseCropWidth / 2) - (visibleWidth / 2) + offsetX;
+  const finalY = (baseCropY + baseCropHeight / 2) - (visibleHeight / 2) + offsetY;
 
   const adjustedCropParams = {
-    x: Math.max(0, newX),
-    y: Math.max(0, newY),
+    x: Math.round(finalX),
+    y: Math.round(finalY),
     width: Math.round(visibleWidth),
     height: Math.round(visibleHeight),
-    rotation: initialCrop.rotation || 0,
+    rotation: 0,
   };
 
-  console.log("🎯 Recorte calculado desde vista principal:", {
-    ID: img.id,
-    zoomReal,
-    imagePosition,
-    visibleWidth,
-    visibleHeight,
-    adjustedCropParams
-  });
-
+  console.log("🎯 Recorte calculado (NUEVA LÓGICA):", { adjustedCropParams });
+  
   return adjustedCropParams;
 };

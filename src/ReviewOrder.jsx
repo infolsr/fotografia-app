@@ -59,10 +59,10 @@ const ReviewOrder = ({ images, selectedPack, onBack, onCheckout }) => {
                 index={index}
                 imageUrl={img.url}
                 formato={img.assignedFormat || selectedPack.pack_items[0].formato_impresion}
-                zoom={img.zoom}
-                imagePosition={img.imagePosition}
-                filter={img.filter}
-                isFlipped={img.isFlipped}
+                zoom={1}
+                imagePosition={{x:0, y:0}}
+                filter={'ninguno'}
+                isFlipped={false}
                 hasBorder={img.hasBorder}
                 isDraggable={false}
               />

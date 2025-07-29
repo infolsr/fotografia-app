@@ -85,6 +85,8 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             hasBorder: false,
             isFlipped: false,
             initialCrop: cropParams,
+            naturalWidth: naturalWidth,
+            naturalHeight: naturalHeight,
           });
         };
         imgLoader.onerror = reject;
@@ -113,11 +115,9 @@ const handleImageUpdate = useCallback((index, updates) => {
       if (i !== index) return img;
 
       // Previene sobrescribir un zoomReal válido con uno inválido
-     const incomingZoomReal = typeof updates.zoomReal === 'number' && !isNaN(updates.zoomReal)
+     const finalZoomReal  = typeof updates.zoomReal === 'number' && !isNaN(updates.zoomReal)
         ? updates.zoomReal
         : img.zoomReal ?? 1;
-
-      const finalZoomReal = Math.max(1, incomingZoomReal); // asegura que sea al menos 1
 
       return {
         ...img,
@@ -259,9 +259,20 @@ const handleImageUpdate = useCallback((index, updates) => {
           imageData={images[editingImageIndex]}
           onSave={(customizations) => {
             console.log("🛬 Cambios recibidos desde modal:", customizations);
-            handleImageUpdate(editingImageIndex, customizations);
-            console.log("📦 Estado actualizado de images tras guardar:", imagesRef.current);
+            const index = editingImageIndex;
+            const incomingZoomReal = customizations.zoomReal ?? images[index].zoomReal;
+            const finalZoomReal = (typeof customizations.zoomReal === 'number' && !isNaN(customizations.zoomReal))
+              ? customizations.zoomReal
+              : images[index].zoomReal ?? 1;
 
+            const fusion = {
+              ...images[index],
+              ...customizations,
+              zoomReal: finalZoomReal
+            };
+
+            console.log("🧾 Imagen fusionada con updates:", fusion);
+            handleImageUpdate(index, customizations);
           }}
           onClose={handleCloseEditModal}
         />

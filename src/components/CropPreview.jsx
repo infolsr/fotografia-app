@@ -107,7 +107,7 @@ const CropPreview = ({
 
     // Guardamos este zoom real de visualización
     if (lastZoomRealRef.current !== finalZoom){
-      onImageUpdate(index, { zoomReal: finalZoom });
+      //onImageUpdate(index, { zoomReal: finalZoom });
       lastZoomRealRef.current = finalZoom;
     }
   }, [image, stageSize, zoom, onImageUpdate]);
@@ -156,17 +156,22 @@ const CropPreview = ({
           draggable={isDraggable}
           dragBoundFunc={limitDrag}
           onDragEnd={(e) => {
-            const centerX = (stageSize.width - scaledWidth) / 2;
-            const centerY = (stageSize.height - scaledHeight) / 2;
-            const pixelOffsetX = e.target.x() - centerX;
-            const pixelOffsetY = e.target.y() - centerY;
-             // — Ajuste de normalización: usar el excedente total, no solo la mitad —
-            const totalXBound = scaledWidth - stageSize.width;
-            const totalYBound = scaledHeight - stageSize.height;
-            const normalizedX = totalXBound > 0 ? pixelOffsetX / totalXBound : 0;
-            const normalizedY = totalYBound > 0 ? pixelOffsetY / totalYBound : 0;
+            // Lógica idéntica a la del EditModal
+            const x_bound = (scaledWidth - stageSize.width) / 2;
+            const y_bound = (scaledHeight - stageSize.height) / 2;
 
-            onImageUpdate(index, { imagePosition: { x: normalizedX, y: normalizedY } });
+            const pixelOffsetX = e.target.x() - (stageSize.width - scaledWidth) / 2;
+            const pixelOffsetY = e.target.y() - (stageSize.height - scaledHeight) / 2;
+
+            const normalizedX = x_bound > 0 ? pixelOffsetX / x_bound : 0;
+            const normalizedY = y_bound > 0 ? pixelOffsetY / y_bound : 0;
+            
+            onImageUpdate(index, { 
+              imagePosition: { 
+                x: normalizedX,
+                y: normalizedY 
+              } 
+            });
           }}
         />
       </Layer>
