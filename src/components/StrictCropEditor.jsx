@@ -49,59 +49,46 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   }, [images, formatosDisponibles, setImages]);
 
   useEffect(() => {
-    const imagesToInitialize = images.filter(img => img.url_original && !img.initialCrop);
-    if (imagesToInitialize.length === 0) return;
-    
-    const aspectoPorTamanio = { "10x15": 10 / 15, "13x18": 13 / 18, "15x20": 15 / 20, "carta": 8.5 / 11, "A4": 210 / 297 };
+      // Ahora buscamos imágenes que aún no tengan sus dimensiones guardadas
+      const imagesToInitialize = images.filter(img => img.url_original && !img.naturalWidth);
+      if (imagesToInitialize.length === 0) return;
 
-    const initializationPromises = imagesToInitialize.map(imageToInit => {
-      return new Promise((resolve, reject) => {
-        const imgLoader = new Image();
-        imgLoader.crossOrigin = 'Anonymous';
-        imgLoader.src = imageToInit.url_original || imageToInit.url;
-        imgLoader.onload = () => {
-          const { naturalWidth, naturalHeight } = imgLoader;
-          const formato = imageToInit.assignedFormat || "10x15";
-          let aspectoMarco = aspectoPorTamanio[formato] || aspectoPorTamanio["10x15"];
-          const aspectoImagen = naturalWidth / naturalHeight;
-          if ((aspectoImagen > 1 && aspectoMarco < 1) || (aspectoImagen < 1 && aspectoMarco > 1)) {
-            aspectoMarco = 1 / aspectoMarco;
-          }
-          let cropWidth, cropHeight;
-          if (aspectoImagen > aspectoMarco) {
-            cropHeight = naturalHeight;
-            cropWidth = Math.round(cropHeight * aspectoMarco);
-          } else {
-            cropWidth = naturalWidth;
-            cropHeight = Math.round(cropWidth / aspectoMarco);
-          }
-          const cropParams = { x: Math.round((naturalWidth - cropWidth) / 2), y: Math.round((naturalHeight - cropHeight) / 2), width: cropWidth, height: cropHeight };
-          console.log("🟢 [StrictCropEditor] InitialCrop generado para imagen", imageToInit.id, cropParams);
-          resolve({
-            ...imageToInit,
-            imagePosition: { x: 0, y: 0 },
-            zoom: 1,
-            filter: 'ninguno',
-            hasBorder: false,
-            isFlipped: false,
-            initialCrop: cropParams,
-            naturalWidth: naturalWidth,
-            naturalHeight: naturalHeight,
-          });
-        };
-        imgLoader.onerror = reject;
+      const initializationPromises = imagesToInitialize.map(imageToInit => {
+        return new Promise((resolve, reject) => {
+          const imgLoader = new Image();
+          imgLoader.crossOrigin = 'Anonymous';
+          imgLoader.src = imageToInit.url_original || imageToInit.url;
+          
+          imgLoader.onload = () => {
+            const { naturalWidth, naturalHeight } = imgLoader;
+            console.log(`🟢 [StrictCropEditor] Dimensiones leídas para imagen ${imageToInit.id}: ${naturalWidth}x${naturalHeight}`);
+            
+            // Resolvemos la promesa con el estado inicial limpio
+            resolve({
+              ...imageToInit,
+              naturalWidth,   // <-- Guardamos el ancho original
+              naturalHeight,  // <-- Guardamos el alto original
+              imagePosition: { x: 0, y: 0 },
+              zoom: 1,
+              filter: 'ninguno',
+              hasBorder: false,
+              isFlipped: false,
+              // La propiedad 'initialCrop' se elimina por completo
+            });
+          };
+          imgLoader.onerror = reject;
+        });
       });
-    });
 
-    Promise.all(initializationPromises).then(initializedImages => {
-      setImages(currentImages =>
-        currentImages.map(originalImg => {
-          const foundInitialized = initializedImages.find(initImg => initImg.id === originalImg.id);
-          return foundInitialized || originalImg;
-        })
-      );
-    }).catch(error => console.error("Error inicializando imágenes", error));
-  }, [images, setImages, formatosDisponibles]);
+      Promise.all(initializationPromises).then(initializedImages => {
+        setImages(currentImages =>
+          currentImages.map(originalImg => {
+            const foundInitialized = initializedImages.find(initImg => initImg.id === originalImg.id);
+            return foundInitialized || originalImg;
+          })
+        );
+      }).catch(error => console.error("Error inicializando imágenes", error));
+    }, [images, setImages]); // <-- Se puede quitar formatosDisponibles de las dependencias
 
   const handleDeleteImage = (indexToDelete) => {
     setImages(images.filter((_, index) => index !== indexToDelete));
@@ -148,8 +135,9 @@ const handleImageUpdate = useCallback((index, updates) => {
             const img = currentImages[i];
             //debugger; // <--- PONLO AQUÍ
 
-            if (!img.initialCrop) {
-                processedImagesData.push(img);
+            if (!img.naturalWidth) {
+                console.warn(`Omitiendo imagen ${img.id} porque no se ha inicializado (sin naturalWidth).`);
+                processedImagesData.push(img); // La pasamos tal cual
                 setUploadProgress(((i + 1) / currentImages.length) * 100);
                 continue;
             }
@@ -220,17 +208,20 @@ const handleImageUpdate = useCallback((index, updates) => {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
               </button>
               <div className="p-2 flex-grow flex flex-col items-center justify-center bg-gray-200">
-                {img.initialCrop && <CropPreview
-                  index={i}
-                  imageUrl={img.url_original || img.url}
-                  formato={img.assignedFormat || formatosDisponibles[0]}
-                  isFlipped={img.isFlipped}
-                  hasBorder={img.hasBorder}
-                  isDraggable={true}
-                  imagePosition={img.imagePosition}
-                  zoom={img.zoom}
-                  onImageUpdate={handleImageUpdate}
-                />}
+                {img.naturalWidth && 
+                 <CropPreview
+                    index={i}
+                    imageUrl={img.url_original || img.url}
+                    formato={img.assignedFormat || formatosDisponibles[0]}
+                    isFlipped={img.isFlipped}
+                    hasBorder={img.hasBorder}
+                    isDraggable={true}
+                    imagePosition={img.imagePosition}
+                    zoom={img.zoom}
+                    onImageUpdate={handleImageUpdate}
+                    naturalWidth={img.naturalWidth}     // <-- AÑADE ESTA LÍNEA
+                    naturalHeight={img.naturalHeight}   // <-- AÑADE ESTA LÍNEA
+                  />}
               </div>
               <div className="p-3 bg-gray-50">
                 <div className="bg-white p-2">{img.public_id?.substring(0, 20) || `Imagen ${i + 1}`}</div>

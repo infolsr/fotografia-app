@@ -52,22 +52,15 @@ const ReviewOrder = ({ images, selectedPack, onBack, onCheckout }) => {
               assignedFormat: img.assignedFormat
             })
           );
-          return (
-            <div key={img.id || index} className="bg-gray-200 p-2 shadow-lg rounded-lg flex justify-center items-center">
-              {/* Se pasan todas las propiedades necesarias para una previsualización correcta */}
-              <CropPreview
-                index={index}
-                imageUrl={img.url}
-                formato={img.assignedFormat || selectedPack.pack_items[0].formato_impresion}
-                zoom={1}
-                imagePosition={{x:0, y:0}}
-                filter={'ninguno'}
-                isFlipped={false}
-                hasBorder={img.hasBorder}
-                isDraggable={false}
-              />
-            </div>
-          );
+            return (
+              <div key={img.id || index} className="bg-white p-1 shadow-lg rounded-lg">
+                <img
+                  src={img.url}
+                  alt={`Imagen final ${index + 1}`}
+                  className="w-full h-auto object-contain rounded"
+                />
+              </div>
+            );
         })}
       </div>
       
