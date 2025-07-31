@@ -21,7 +21,7 @@ const RemoteUploadPage = () => {
       }
 
       try {
-        const response = await fetch(`http://localhost:4000/validar-sesion-remota/${token}`);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}//validar-sesion-remota/${token}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         

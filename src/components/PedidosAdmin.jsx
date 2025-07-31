@@ -90,7 +90,7 @@ const descargarImagenes = async (pedido) => {
 
     // Se determina si es un regalo y se elige la URL y el nombre de archivo correctos.
     const esRegalo = item.es_regalo;
-    const formato = item.formato_impresion;
+    let formato = item.formato_impresion;
     const url_a_descargar = esRegalo ? img.url_original : img.url;
     const cleanPublicId = img.public_id.split('/').pop();
     const nombreArchivo = esRegalo ? `${cleanPublicId}_ORIGINAL.jpg` : `${cleanPublicId}.jpg`;

@@ -10,7 +10,7 @@ const RemoteUploader = ({ pedidoId, onClose }) => {
   useEffect(() => {
     const createRemoteSession = async () => {
       try {
-        const response = await fetch('http://localhost:4000/crear-sesion-remota', {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-sesion-remota`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pedidoId }),

@@ -90,6 +90,37 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
     });
   }, [images, setImages]);
 
+  // En: src/components/StrictCropEditor.jsx
+
+  // --- useEffect para escuchar cambios en tiempo real ---
+  useEffect(() => {
+    // 1. Asegurarse de que tenemos un pedidoId para escuchar.
+    if (!pedidoId) return;
+
+    // 2. Crear un canal de comunicación único para este pedido.
+    const channel = supabase.channel(`pedido-imagenes-${pedidoId}`);
+
+    // 3. Suscribirse a los eventos de INSERCIÓN en la tabla 'imagenes_pedido'.
+    channel.on(
+        'postgres_changes',
+        {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'imagenes_pedido',
+            filter: `pedido_id=eq.${pedidoId}` // Escuchar solo cambios para el pedido actual.
+        },
+        (payload) => {
+            console.log('Nueva imagen recibida en tiempo real:', payload.new);
+            // 4. Añadir la nueva imagen al estado local, actualizando la UI.
+            setImages(currentImages => [...currentImages, payload.new]);
+        }
+    ).subscribe();
+
+    // 5. Función de limpieza para desconectarse del canal cuando el componente ya no es visible.
+    return () => {
+        supabase.removeChannel(channel);
+    };
+  }, [pedidoId, setImages]); // Dependencias para el efecto.
 
   // --- MANEJADORES DE EVENTOS ---
   const handleDeleteImage = (indexToDelete) => {

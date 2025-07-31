@@ -61,7 +61,7 @@ const Checkout = ({ pedidoId, images, selectedPack, onBack, onReset }) => {
 
     if (accionPago === "mercado") {
       try {
-        const response = await fetch("http://localhost:4000/crear-pago", {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-pago`, {
           method: "POST", 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
