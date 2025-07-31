@@ -11,17 +11,22 @@ const upload = multer({ storage: multer.memoryStorage() }); // Configura multer 
 const sharp = require('sharp'); // ✅ Se importa sharp
 
 const app = express();
-app.use(express.json());
-app.use(cors());
+
+//app.use(cors());
 
 // 1. Define la URL de tu frontend desde una variable de entorno.
 const clientURL = process.env.CLIENT_URL;
 // 2. Configura las opciones de CORS para permitir solo ese origen.
 const corsOptions = {
-  origin: clientURL
+  origin: clientURL,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type'],
+  credentials: true
 };
 // 3. Usa el middleware de CORS con las opciones seguras ANTES de tus rutas.
 app.use(cors(corsOptions));
+
+app.use(express.json());
 
 // --- CONFIGURACIONES DE SERVICIOS ---
 mercadopago.configure({
