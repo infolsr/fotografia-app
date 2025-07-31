@@ -16,7 +16,7 @@ export const getFinalCropFromView = (img) => {
 
   // 1. Determinar el 'viewport' (el área visible al 100% de zoom)
   const cropFormats = { "10x15": 10 / 15, "13x18": 13 / 18, "15x20": 15 / 20, "carta": 8.5 / 11, "A4": 210 / 297 };
-  let targetAspect = cropFormats[assignedFormat] || cropFormats["10x15"];
+  let targetAspect = cropFormats[assignedFormat.toLowerCase()] || cropFormats["10x15"];
   const imageAspect = naturalWidth / naturalHeight;
   if ((imageAspect > 1 && targetAspect < 1) || (imageAspect < 1 && targetAspect > 1)) {
     targetAspect = 1 / targetAspect;

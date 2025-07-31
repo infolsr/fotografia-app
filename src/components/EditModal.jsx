@@ -243,7 +243,7 @@ const handleSave = () => {
           <h2 className="text-xl font-bold text-gray-800 border-b pb-3">Editor Avanzado</h2>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Zoom</label>
-            <input type="range" min={1} max={4} step={0.01} value={zoom} onChange={(e) => setZoom(parseFloat(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-thumb"/>
+            {/*<input type="range" min={1} max={4} step={0.01} value={zoom} onChange={(e) => setZoom(parseFloat(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-thumb"/>*/}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Filtro de Color</label>

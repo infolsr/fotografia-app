@@ -1,4 +1,4 @@
-// En: src/utils/cropImage.js
+// Archivo: src/utils/processImage.js
 
 const createImage = (url) =>
   new Promise((resolve, reject) => {
@@ -18,95 +18,72 @@ function rotateSize(width, height, rotation) {
 }
 
 export async function processImage(imageUrl, cropParams, options = {}, outputSize) {
-  // --- LOG DE DEBUG 0: PARÁMETROS DE ENTRADA ---
-  console.log("--- INICIANDO processImage ---");
-  // — Log JSON completo de entrada al procesamiento —
-  console.log(
-    "🔄 [cropImage] Entrada processImage:",
-    JSON.stringify({ imageUrl, cropParams, options, outputSize })
-  );
-
   const image = await createImage(imageUrl);
   const { filter, isFlipped, hasBorder } = options;
   const { rotation = 0 } = cropParams;
 
-  // 1. RECORTAR PRIMERO
-  const croppedCanvas = document.createElement('canvas');
-  const croppedCtx = croppedCanvas.getContext('2d');
-  if (!croppedCtx) throw new Error('No se pudo obtener el contexto del canvas recortado');
-
-  croppedCanvas.width = cropParams.width;
-  croppedCanvas.height = cropParams.height;
-
-  croppedCtx.drawImage(
+  // 1. Crear canvas inicial con la imagen recortada
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = cropParams.width;
+  canvas.height = cropParams.height;
+  ctx.drawImage(
     image,
-    cropParams.x,
-    cropParams.y,
-    cropParams.width,
-    cropParams.height,
+    cropParams.x, cropParams.y,
+    cropParams.width, cropParams.height,
     0, 0,
-    cropParams.width,
-    cropParams.height
+    cropParams.width, cropParams.height
   );
-  
-  // --- LOG DE DEBUG 1: DESPUÉS DEL RECORTE ---
-  console.log("PASO 1: Dimensiones después del recorte inicial:", { width: croppedCanvas.width, height: croppedCanvas.height });
-  
-  let currentCanvas = croppedCanvas;
 
-  // 2. APLICAR TRANSFORMACIONES
+  // Variable para el canvas que se va modificando
+  let currentCanvas = canvas;
+
+  // 2. Aplicar rotación si es necesario (código que ya tenías)
   if (rotation !== 0) {
     const rotatedCanvas = document.createElement('canvas');
     const rotatedCtx = rotatedCanvas.getContext('2d');
-    if (!rotatedCtx) throw new Error('No se pudo obtener el contexto del canvas rotado');
-    
-    const rotRad = (rotation * Math.PI) / 180;
     const { width: newWidth, height: newHeight } = rotateSize(currentCanvas.width, currentCanvas.height, rotation);
     rotatedCanvas.width = newWidth;
     rotatedCanvas.height = newHeight;
-
     rotatedCtx.translate(newWidth / 2, newHeight / 2);
-    rotatedCtx.rotate(rotRad);
+    rotatedCtx.rotate((rotation * Math.PI) / 180);
     rotatedCtx.drawImage(currentCanvas, -currentCanvas.width / 2, -currentCanvas.height / 2);
-    
     currentCanvas = rotatedCanvas;
-    // --- LOG DE DEBUG 2: DESPUÉS DE LA ROTACIÓN ---
-    console.log("PASO 2a: Dimensiones después de la rotación:", { width: currentCanvas.width, height: currentCanvas.height });
   }
   
+  // 3. Crear un canvas final para aplicar efectos y redimensionar
+  const finalCanvas = document.createElement('canvas');
+  const finalCtx = finalCanvas.getContext('2d');
+  finalCanvas.width = outputSize.width;
+  finalCanvas.height = outputSize.height;
+
+  // 4. Aplicar filtros y espejado
+  let filterString = '';
+  if (filter === 'bn') filterString = 'grayscale(100%)';
+  if (filter === 'sepia') filterString = 'sepia(100%)';
+  finalCtx.filter = filterString;
+
   if (isFlipped) {
-    // ... lógica de espejado ...
-    currentCanvas = flippedCanvas;
+    finalCtx.translate(finalCanvas.width, 0);
+    finalCtx.scale(-1, 1);
   }
-  if (filter && filter !== 'ninguno') {
-    // ... lógica de filtro ...
-    currentCanvas = filteredCanvas;
-  }
+  
+  // 5. Dibujar la imagen (ya recortada y rotada) en el canvas final
+  finalCtx.drawImage(currentCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+  
+  // 6. Añadir borde si es necesario (se dibuja encima de todo)
   if (hasBorder) {
-    // ... lógica de borde ...
-    currentCanvas = borderedCanvas;
+    finalCtx.filter = 'none'; // Resetea el filtro para que el borde no se vea afectado
+    finalCtx.strokeStyle = 'white';
+    // El grosor del borde es un % del lado más corto de la imagen
+    const strokeWidth = Math.min(finalCanvas.width, finalCanvas.height) * 0.025; 
+    finalCtx.lineWidth = strokeWidth;
+    // Dibuja el rectángulo del borde
+    finalCtx.strokeRect(strokeWidth / 2, strokeWidth / 2, finalCanvas.width - strokeWidth, finalCanvas.height - strokeWidth);
   }
 
-  // --- LOG DE DEBUG 3: ANTES DEL REDIMENSIONADO ---
-  console.log("PASO 3: Dimensiones ANTES del redimensionado final:", { width: currentCanvas.width, height: currentCanvas.height });
-
-  // 3. REDIMENSIONADO FINAL
-  const resizedCanvas = document.createElement('canvas');
-  const resizedCtx = resizedCanvas.getContext('2d');
-  resizedCanvas.width = outputSize.width;
-  resizedCanvas.height = outputSize.height;
-  
-  // --- LOG DE DEBUG 4: DIMENSIONES DE SALIDA ---
-  //console.log("PASO 4: Redimensionando A:", { width: resizedCanvas.width, height: resizedCanvas.height });
-  // — Log JSON del tamaño final antes de exportar blob —
-  console.log(
-    "🔄 [cropImage] outputSize:",
-    JSON.stringify(outputSize)
-  );
-  
-  resizedCtx.drawImage(currentCanvas, 0, 0, resizedCanvas.width, resizedCanvas.height);
-
+  // 7. Exportar el resultado como un Blob
   return new Promise((resolve) => {
-    resizedCanvas.toBlob(resolve, 'image/jpeg', 0.95);
+    finalCanvas.toBlob(resolve, 'image/jpeg', 0.95);
   });
 }

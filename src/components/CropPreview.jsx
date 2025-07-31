@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Stage, Layer, Image as KonvaImage } from 'react-konva';
 import useImage from 'use-image';
 
@@ -12,16 +12,17 @@ const CropPreview = ({
   onImageUpdate = () => {},
   naturalWidth,
   naturalHeight,
+  filter, hasBorder, isFlipped // <-- Nuevas props
 }) => {
   const [image] = useImage(imageUrl, 'Anonymous');
   const [stageSize, setStageSize] = useState({ width: 200, height: 300 });
-
   const [renderProps, setRenderProps] = useState({
     scale: 1,
     baseCrop: { x: 0, y: 0, width: 1, height: 1 },
     x: 0,
     y: 0,
   });
+  const imageRef = useRef(null); // <-- Ref para la imagen de Konva
 
   // Efecto 1: Calcula el tamaño del escenario
   useEffect(() => {
@@ -69,6 +70,19 @@ const CropPreview = ({
       
   }, [naturalWidth, naturalHeight, stageSize, zoom, imagePosition]);
 
+    // useEffect para aplicar filtros de Konva
+  useEffect(() => {
+    if (!imageRef.current) return;
+    const activeFilters = { 'bn': [Konva.Filters.Grayscale], 'sepia': [Konva.Filters.Sepia] }[filter];
+    if (activeFilters) {
+      imageRef.current.filters(activeFilters);
+      imageRef.current.cache();
+    } else {
+      imageRef.current.filters([]);
+      imageRef.current.clearCache();
+    }
+  }, [filter]);
+
   if (!image || !naturalWidth) {
     return <div style={{width: stageSize.width, height: stageSize.height, backgroundColor: '#f0f0f0'}} />;
   }
@@ -79,11 +93,14 @@ const CropPreview = ({
     <Stage width={stageSize.width} height={stageSize.height} className="rounded-md">
       <Layer clip={{ x: 0, y: 0, width: stageSize.width, height: stageSize.height }}>
         <KonvaImage
+          ref={imageRef}
           image={image}
           width={naturalWidth * scale}
           height={naturalHeight * scale}
           x={x}
           y={y}
+          scaleX={isFlipped ? -1 : 1} // <-- Aplica espejado
+          offsetX={isFlipped ? (naturalWidth * scale) : 0} // <-- Compensa el espejado
           draggable={isDraggable}
           onDragEnd={(e) => {
             const { scale } = renderProps;

@@ -26,8 +26,8 @@ const Checkout = ({ pedidoId, images, selectedPack, onBack, onReset }) => {
   // ✅ El subtotal ahora se calcula de forma más simple y segura
   const subtotal = useMemo(() => {
     if (!selectedPack) return 0;
-    if (selectedPack.nombre_pack.includes('Individual')) {
-      return images.length * selectedPack.precio;
+    if (selectedPack.es_individual) {
+          return images.length * selectedPack.precio;
     }
     return selectedPack.precio;
   }, [images, selectedPack]);
@@ -155,6 +155,26 @@ const Checkout = ({ pedidoId, images, selectedPack, onBack, onReset }) => {
                 <option value="transferencia">Transferencia Electrónica</option>
             </select>
         </div>
+        {/* 👇 INICIO DEL BLOQUE AÑADIDO */}
+        {metodoPago === 'transferencia' && (
+            <div className="mt-6 p-4 bg-luitania-sage/10 border border-luitania-sage/30 rounded-lg text-sm text-left transition-all duration-300 ease-in-out">
+              <h3 className="font-lora font-bold text-luitania-sage mb-2">Datos para la Transferencia</h3>
+              <p className="text-luitania-textbrown/80 mb-3">
+                Para finalizar, realiza la transferencia por el monto total y envía el comprobante a nuestro correo.
+              </p>
+            <div className="space-y-1 text-luitania-textbrown">
+              <p><strong>Banco:</strong> Banco Estado</p>
+              <p><strong>Tipo de Cuenta:</strong> Cuenta RUT</p>
+              <p><strong>N° de Cuenta:</strong> 15455513</p>
+              <p><strong>Nombre:</strong> Britania Lara Naranjo</p>
+              <p><strong>RUT:</strong> 15455513-7</p>
+              <p><strong>Correo:</strong> britania.lara19@gmail.com</p>
+              <p className="font-bold mt-2"><strong>Monto:</strong> ${total.toLocaleString('es-CL')}</p>
+            </div>
+          </div>
+        )}
+        {/* 👆 FIN DEL BLOQUE AÑADIDO */}
+
         <div className="flex justify-between mt-8">
             <button onClick={onBack} className="btn-secondary">Volver</button>
             <button onClick={handlePago} className="btn-primary">Ir a Pagar</button>

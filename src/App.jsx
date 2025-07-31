@@ -88,35 +88,65 @@ const ClienteFlow = () => {
   
   // En src/App.jsx, dentro del componente ClienteFlow
 
+// En: src/App.jsx
+
 const handleImageUpload = async (e) => {
   const files = Array.from(e.target.files);
   if (files.length === 0 || !selectedPackId) return;
+      // ✅ LÍMITE DE 50 FOTOS POR LOTE
+    if (files.length > 50) {
+        alert("Puedes seleccionar un máximo de 50 fotos a la vez. Por favor, divide tu subida en lotes más pequeños.");
+        e.target.value = null; // Limpia el input para permitir una nueva selección
+        return;
+    }
+    // ✅ Lógica de validación de cantidad
+      const packSeleccionado = productos.find(p => p.id.toString() === selectedPackId);
+        if (!packSeleccionado?.es_individual) {
+          const totalPermitido = packSeleccionado?.pack_items
+          .reduce((sum, item) => sum + item.cantidad, 0) || 0;
 
+          const cupoRestante = totalPermitido - images.length;
+
+          if (totalPermitido > 0 && files.length > cupoRestante) {
+            alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
+            e.target.value = null; 
+            return;
+          }
+        }
+    // --- Fin de la validación ---
+    
   setIsUploading(true);
   setUploadProgress(0);
 
   try {
-    const response = await fetch("http://localhost:4000/crear-borrador-pedido", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        packId: selectedPackId,
-        imageCount: files.length,
-        clienteId: user.id,
-        clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
-        clienteCorreo: user.email,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "No se pudo crear el pedido.");
+    let currentPedidoId = pedidoId;
+    if (!currentPedidoId) {
+      const response = await fetch("http://localhost:4000/crear-borrador-pedido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          packId: selectedPackId,
+          imageCount: files.length,
+          clienteId: user.id,
+          clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
+          clienteCorreo: user.email,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "No se pudo crear el pedido.");
+      currentPedidoId = data.pedidoId;
+      setPedidoId(currentPedidoId);
+    }
+
+    const sanitizedClientName = (user.user_metadata?.name || 'cliente')
+      .replace(/ /g, '_')
+      .replace(/[^a-zA-Z0-9_]/g, '');
     
-    const newPedidoId = data.pedidoId;
-    setPedidoId(newPedidoId);
+    const shortOrderId = currentPedidoId.substring(0, 8);
 
-    // ✅ 1. Inicializamos un contador de subidas completadas
     let completedCount = 0;
-
-    const uploadPromises = files.map(async (file) => {
+    // 👇 CORRECCIÓN: Se añade 'index' como segundo parámetro del map
+    const uploadPromises = files.map(async (file, index) => {
       const optimizedFile = await optimizeImage(file);
       
       const formData = new FormData();
@@ -124,30 +154,33 @@ const handleImageUpload = async (e) => {
       formData.append("upload_preset", "FotosPublicas");
       formData.append("folder", "Pedidos");
 
+      const incrementalNumber = images.length + index + 1;
+      const customPublicId = `${shortOrderId}_${sanitizedClientName}_${incrementalNumber}`;
+      formData.append("public_id", customPublicId);
+
       const cloudinaryRes = await fetch("https://api.cloudinary.com/v1_1/dj0lklrks/image/upload", { method: "POST", body: formData });
       const cloudinaryData = await cloudinaryRes.json();
       if (!cloudinaryRes.ok) throw new Error(cloudinaryData.error.message || 'Error en Cloudinary');
 
       const { data: newImageRecord, error: supabaseError } = await supabase
         .from("imagenes_pedido").insert([{
-            pedido_id: newPedidoId,
+            pedido_id: currentPedidoId,
             url: cloudinaryData.secure_url,
             url_original: cloudinaryData.secure_url,
             public_id: cloudinaryData.public_id,
-            vigente: true,
-            subida_en: new Date().toISOString(),
         }]).select().single();
+
       if (supabaseError) throw supabaseError;
       
-      // ✅ 2. Incrementamos el contador y actualizamos el progreso basándonos en él
       completedCount++;
       setUploadProgress((completedCount / files.length) * 100);
 
       return { ...newImageRecord, file: file };
     });
 
-    const uploadedImagesData = await Promise.all(uploadPromises);
-    setImages(uploadedImagesData);
+    const newImagesData = await Promise.all(uploadPromises);
+    
+    setImages(prevImages => [...prevImages, ...newImagesData]);
     setStep(2);
 
   } catch (error) {
@@ -156,6 +189,7 @@ const handleImageUpload = async (e) => {
   } finally {
     setIsUploading(false);
   }
+
 };
 
   const handleReset = () => {
@@ -239,7 +273,7 @@ const handleImageUpload = async (e) => {
           </div>
         )}
 
-        {step === 2 && ( <StrictCropEditor images={images} setImages={setImages} selectedPackId={selectedPackId} productos={productos} pedidoId={pedidoId} onCropsConfirmed={() => setStep(3)} /> )}
+        {step === 2 && ( <StrictCropEditor images={images} setImages={setImages} selectedPackId={selectedPackId} productos={productos} pedidoId={pedidoId} onCropsConfirmed={() => setStep(3)} onAddImages={handleImageUpload} /> )}
         {step === 3 && ( <ReviewOrder images={images} selectedPack={selectedPack} onBack={() => setStep(2)} onCheckout={() => setStep(4)} /> )}
         {step === 4 && ( <Checkout pedidoId={pedidoId} images={images} selectedPack={selectedPack} onBack={() => setStep(3)} onReset={handleReset} /> )}
       </div>

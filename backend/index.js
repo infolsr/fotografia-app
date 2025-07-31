@@ -8,10 +8,12 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto'); // <-- SE AÑADE LA IMPORTACIÓN QUE FALTABA
 const multer = require('multer'); // Importa multer
 const upload = multer({ storage: multer.memoryStorage() }); // Configura multer para manejar archivos en memoria
+const sharp = require('sharp'); // ✅ Se importa sharp
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
 
 // --- CONFIGURACIONES DE SERVICIOS ---
 mercadopago.configure({
@@ -190,6 +192,56 @@ app.post('/sobrescribir-imagen', upload.single('file'), async (req, res) => {
   }
 });
 
+// ✅ NUEVA RUTA PARA SUBIDA DE IMÁGENES DESDE EL CLIENTE
+app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
+  try {
+    const { pedidoId } = req.body;
+    if (!req.files || req.files.length === 0) {
+      throw new Error("No se recibieron imágenes.");
+    }
+
+    const uploadedImagesData = [];
+
+    for (const file of req.files) {
+      // 1. Optimizar la imagen con Sharp
+      const optimizedBuffer = await sharp(file.buffer)
+        .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+
+      // 2. Subir el buffer optimizado a Cloudinary
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "Pedidos", resource_type: "image" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        uploadStream.end(optimizedBuffer);
+      });
+
+      // 3. Guardar en Supabase
+      const { data: newImageRecord, error: supabaseError } = await supabase
+        .from("imagenes_pedido").insert([{
+            pedido_id: pedidoId,
+            url: uploadResult.secure_url,
+            url_original: uploadResult.secure_url,
+            public_id: uploadResult.public_id,
+        }]).select().single();
+      
+      if (supabaseError) throw supabaseError;
+      
+      uploadedImagesData.push(newImageRecord);
+    }
+
+    res.json({ success: true, uploadedImages: uploadedImagesData });
+
+  } catch (error) {
+    console.error("❌ ERROR en /subir-imagenes:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 const PORT = 4000;
 app.listen(PORT, () => {

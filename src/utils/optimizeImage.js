@@ -7,7 +7,7 @@ import imageCompression from 'browser-image-compression';
  * @returns {Promise<File>} - El nuevo archivo de imagen optimizado.
  */
 export async function optimizeImage(file) {
-  console.log(`Tamaño original: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+  //console.log(`Tamaño original: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
   const options = {
     maxSizeMB: 1,          // Tamaño máximo del archivo en MB
@@ -17,7 +17,7 @@ export async function optimizeImage(file) {
 
   try {
     const compressedFile = await imageCompression(file, options);
-    console.log(`Tamaño optimizado: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+    //console.log(`Tamaño optimizado: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
     return compressedFile;
   } catch (error) {
     console.error('Error al optimizar la imagen:', error);
