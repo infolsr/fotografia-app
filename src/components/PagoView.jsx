@@ -11,7 +11,7 @@ const PagoView = () => {
 
 const pagar = async (pedido) => {
   try {
-    const response = await fetch("http://localhost:4000/crear-pago", {
+    const response = await fetch("https://luitania-backend.onrender.com/crear-pago", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

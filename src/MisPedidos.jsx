@@ -39,7 +39,7 @@ const MisPedidos = () => {
 
   const handleRetryPayment = async (pedido) => {
     try {
-      const response = await fetch("http://localhost:4000/crear-pago", {
+      const response = await fetch("https://luitania-backend.onrender.com/crear-pago", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pedidoId: pedido.id }),
@@ -66,7 +66,7 @@ const handleCancelOrder = async (pedido) => {
     if (rpcError) throw rpcError;
 
     if (data && data.publicIds && data.publicIds.length > 0) {
-      await fetch('http://localhost:4000/eliminar-fotos', {
+      await fetch('https://luitania-backend.onrender.com/eliminar-fotos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publicIds: data.publicIds }),

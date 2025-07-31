@@ -139,7 +139,7 @@ const eliminarImagenesAsociadas = async (pedido) => {
 
   if (publicIds.length > 0) {
     // 3. Llamar a tu backend para que elimine las imágenes de Cloudinary.
-    await fetch('http://localhost:4000/eliminar-fotos', {
+    await fetch('https://luitania-backend.onrender.com/eliminar-fotos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ publicIds }),

@@ -222,7 +222,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             const formData = new FormData();
             formData.append("file", finalBlob, img.public_id);
             formData.append("public_id", img.public_id);
-            const res = await fetch("http://localhost:4000/sobrescribir-imagen", { method: "POST", body: formData });
+            const res = await fetch("https://luitania-backend.onrender.com/sobrescribir-imagen", { method: "POST", body: formData });
             const cloudinaryData = await res.json();
             if (!res.ok) throw new Error(cloudinaryData.error || "Error en el servidor");
             

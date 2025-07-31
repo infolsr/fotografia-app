@@ -121,7 +121,7 @@ const handleImageUpload = async (e) => {
   try {
     let currentPedidoId = pedidoId;
     if (!currentPedidoId) {
-      const response = await fetch("http://localhost:4000/crear-borrador-pedido", {
+      const response = await fetch("https://luitania-backend.onrender.com/crear-borrador-pedido", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
