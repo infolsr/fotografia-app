@@ -298,7 +298,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
         
         {/* El banner de regalos obsoleto ha sido eliminado */}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
           {images.map((img, i) => {
             const allPackItems = [regularItem, ...giftItems].filter(Boolean);
             const currentItem = allPackItems.find(item => item.id === img.pack_item_id);
