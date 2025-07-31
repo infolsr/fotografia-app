@@ -14,6 +14,14 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 1. Define la URL de tu frontend desde una variable de entorno.
+const clientURL = process.env.CLIENT_URL;
+// 2. Configura las opciones de CORS para permitir solo ese origen.
+const corsOptions = {
+  origin: clientURL
+};
+// 3. Usa el middleware de CORS con las opciones seguras ANTES de tus rutas.
+app.use(cors(corsOptions));
 
 // --- CONFIGURACIONES DE SERVICIOS ---
 mercadopago.configure({
