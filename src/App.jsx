@@ -3,7 +3,7 @@ import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { SessionContextProvider } from "@supabase/auth-helpers-react";
 import { useUser } from "@supabase/auth-helpers-react";
 import { supabase } from "./lib/supabaseClient";
-import { optimizeImage } from './utils/optimizeImage';
+//import { optimizeImage } from './utils/optimizeImage';
 
 // Importación de Componentes y Páginas
 import StrictCropEditor from "./components/StrictCropEditor";
@@ -23,6 +23,7 @@ import CircularProgress from "./components/CircularProgress";
 // Importación de Assets y Estilos
 import logo from "./assets/logo-luitania1.png";
 import "./App.css";
+import useIsMobile from "./hooks/useIsMobile"; // Se importa el hook
 
 // ====================================================================================
 // Componente que gestiona el flujo principal del cliente
@@ -40,6 +41,7 @@ const ClienteFlow = () => {
   const [loadingProductos, setLoadingProductos] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const isMobile = useIsMobile(); // Se llama al hook para obtener el valor
 
   // --- LÓGICA DE DATOS Y PERSISTENCIA ---
   useEffect(() => {
@@ -93,40 +95,38 @@ const ClienteFlow = () => {
 const handleImageUpload = async (e) => {
   const files = Array.from(e.target.files);
   if (files.length === 0 || !selectedPackId) return;
-      // ✅ LÍMITE DE 50 FOTOS POR LOTE
-    if (files.length > 50) {
-        alert("Puedes seleccionar un máximo de 50 fotos a la vez. Por favor, divide tu subida en lotes más pequeños.");
-        e.target.value = null; // Limpia el input para permitir una nueva selección
-        return;
+
+  // Se mantiene la lógica de límite dinámico que ya tenías
+  const uploadLimit = isMobile ? 15 : 50;
+  if (files.length > uploadLimit) {
+    alert(`Puedes seleccionar un máximo de ${uploadLimit} fotos a la vez.`);
+    e.target.value = null;
+    return;
+  }
+  
+  // Se mantiene la validación del cupo del paquete
+  const packSeleccionado = productos.find(p => p.id.toString() === selectedPackId);
+  if (!packSeleccionado?.es_individual) {
+    const totalPermitido = packSeleccionado?.pack_items.reduce((sum, item) => sum + item.cantidad, 0) || 0;
+    const cupoRestante = totalPermitido - images.length;
+    if (totalPermitido > 0 && files.length > cupoRestante) {
+      alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
+      e.target.value = null;
+      return;
     }
-    // ✅ Lógica de validación de cantidad
-      const packSeleccionado = productos.find(p => p.id.toString() === selectedPackId);
-        if (!packSeleccionado?.es_individual) {
-          const totalPermitido = packSeleccionado?.pack_items
-          .reduce((sum, item) => sum + item.cantidad, 0) || 0;
+  }
 
-          const cupoRestante = totalPermitido - images.length;
-
-          if (totalPermitido > 0 && files.length > cupoRestante) {
-            alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
-            e.target.value = null; 
-            return;
-          }
-        }
-    // --- Fin de la validación ---
-    
   setIsUploading(true);
   setUploadProgress(0);
 
   try {
     let currentPedidoId = pedidoId;
     if (!currentPedidoId) {
-      const response = await fetch("https://luitania-backend.onrender.com/crear-borrador-pedido", {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-borrador-pedido`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           packId: selectedPackId,
-          imageCount: files.length,
           clienteId: user.id,
           clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
           clienteCorreo: user.email,
@@ -137,60 +137,54 @@ const handleImageUpload = async (e) => {
       currentPedidoId = data.pedidoId;
       setPedidoId(currentPedidoId);
     }
-
-    const sanitizedClientName = (user.user_metadata?.name || 'cliente')
-      .replace(/ /g, '_')
-      .replace(/[^a-zA-Z0-9_]/g, '');
     
-    const shortOrderId = currentPedidoId.substring(0, 8);
-
-    let completedCount = 0;
-    // 👇 CORRECCIÓN: Se añade 'index' como segundo parámetro del map
-    const uploadPromises = files.map(async (file, index) => {
-      const optimizedFile = await optimizeImage(file);
-      
-      const formData = new FormData();
-      formData.append("file", optimizedFile);
-      formData.append("upload_preset", "FotosPublicas");
-      formData.append("folder", "Pedidos");
-
-      const incrementalNumber = images.length + index + 1;
-      const customPublicId = `${shortOrderId}_${sanitizedClientName}_${incrementalNumber}`;
-      formData.append("public_id", customPublicId);
-
-      const cloudinaryRes = await fetch("https://api.cloudinary.com/v1_1/dj0lklrks/image/upload", { method: "POST", body: formData });
-      const cloudinaryData = await cloudinaryRes.json();
-      if (!cloudinaryRes.ok) throw new Error(cloudinaryData.error.message || 'Error en Cloudinary');
-
-      const { data: newImageRecord, error: supabaseError } = await supabase
-        .from("imagenes_pedido").insert([{
-            pedido_id: currentPedidoId,
-            url: cloudinaryData.secure_url,
-            url_original: cloudinaryData.secure_url,
-            public_id: cloudinaryData.public_id,
-        }]).select().single();
-
-      if (supabaseError) throw supabaseError;
-      
-      completedCount++;
-      setUploadProgress((completedCount / files.length) * 100);
-
-      return { ...newImageRecord, file: file };
+    // 1. Prepara los archivos en un FormData para enviarlos al backend.
+    const formData = new FormData();
+    formData.append('pedidoId', currentPedidoId);
+    files.forEach(file => {
+      formData.append('images', file);
     });
 
-    const newImagesData = await Promise.all(uploadPromises);
-    
-    setImages(prevImages => [...prevImages, ...newImagesData]);
-    setStep(2);
+      // --- INICIO DE LA LÓGICA DE SUBIDA CON PROGRESO ---
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`);
 
-  } catch (error) {
-    alert("Error al subir las imágenes: " + error.message);
-    console.error("Error en handleImageUpload:", error);
-  } finally {
-    setIsUploading(false);
-  }
+        // Escucha el evento de progreso de la subida
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            setUploadProgress(percentComplete);
+          }
+        };
 
-};
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            setImages(prevImages => [...prevImages, ...data.uploadedImages]);
+            setStep(2);
+            resolve(data);
+          } else {
+            const errorData = JSON.parse(xhr.responseText);
+            reject(new Error(errorData.error || "No se pudieron subir las imágenes."));
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error("Error de red al intentar subir las imágenes."));
+        };
+
+        xhr.send(formData);
+      });
+      // --- FIN DE LA LÓGICA DE SUBIDA CON PROGRESO ---
+
+    } catch (error) {
+      alert("Error al subir las imágenes: " + error.message);
+      console.error("Error en handleImageUpload:", error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleReset = () => {
     localStorage.removeItem('pedidoEnProgreso');

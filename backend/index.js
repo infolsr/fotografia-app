@@ -219,20 +219,48 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
     if (!req.files || req.files.length === 0) {
       throw new Error("No se recibieron imágenes.");
     }
+// 1. Obtenemos los datos del cliente desde el pedido para construir el nombre
+    const { data: pedidoData, error: pedidoError } = await supabase
+      .from('pedidos')
+      .select('nombre_cliente')
+      .eq('id', pedidoId)
+      .single();
+
+    if (pedidoError) throw new Error("No se pudo encontrar el pedido para nombrar las imágenes.");
+
+    const sanitizedClientName = (pedidoData.nombre_cliente || 'cliente')
+      .replace(/ /g, '_')
+      .replace(/[^a-zA-Z0-9_]/g, '');
+    
+    const shortOrderId = pedidoId.substring(0, 8);
 
     const uploadedImagesData = [];
 
+    // Usamos un bucle for...of para poder usar await y un índice
+    let index = 0;
     for (const file of req.files) {
-      // 1. Optimizar la imagen con Sharp
       const optimizedBuffer = await sharp(file.buffer)
-        .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
+        .rotate() // <-- AÑADE ESTA LÍNEA
+        .resize({ 
+          width: 1920, 
+          height: 1920, 
+          fit: 'inside', // 'inside' asegura que la imagen quepa sin ser recortada ni deformada
+          withoutEnlargement: true // Evita que imágenes pequeñas se agranden
+        })
         .jpeg({ quality: 90 })
         .toBuffer();
 
-      // 2. Subir el buffer optimizado a Cloudinary
+      // 2. Se construye el public_id personalizado
+      const incrementalNumber = index + 1; // El correlativo
+      const customPublicId = `${shortOrderId}_${sanitizedClientName}_${incrementalNumber}`;
+
       const uploadResult = await new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "Pedidos", resource_type: "image" },
+          { 
+            folder: "Pedidos", 
+            resource_type: "image",
+            public_id: customPublicId // <-- Se usa el nombre personalizado aquí
+          },
           (error, result) => {
             if (error) reject(error);
             else resolve(result);
@@ -241,7 +269,6 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
         uploadStream.end(optimizedBuffer);
       });
 
-      // 3. Guardar en Supabase
       const { data: newImageRecord, error: supabaseError } = await supabase
         .from("imagenes_pedido").insert([{
             pedido_id: pedidoId,
@@ -253,6 +280,7 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
       if (supabaseError) throw supabaseError;
       
       uploadedImagesData.push(newImageRecord);
+      index++; // Incrementamos el correlativo
     }
 
     res.json({ success: true, uploadedImages: uploadedImagesData });
