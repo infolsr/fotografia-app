@@ -96,95 +96,72 @@ const handleImageUpload = async (e) => {
   const files = Array.from(e.target.files);
   if (files.length === 0 || !selectedPackId) return;
 
-  // Se mantiene la lógica de límite dinámico que ya tenías
+  // Se mantiene la lógica de límite dinámico
   const uploadLimit = isMobile ? 15 : 50;
   if (files.length > uploadLimit) {
-    alert(`Puedes seleccionar un máximo de ${uploadLimit} fotos a la vez.`);
-    e.target.value = null;
-    return;
+      alert(`Puedes seleccionar un máximo de ${uploadLimit} fotos a la vez.`);
+      e.target.value = null;
+      return;
   }
-  
+
   // Se mantiene la validación del cupo del paquete
   const packSeleccionado = productos.find(p => p.id.toString() === selectedPackId);
   if (!packSeleccionado?.es_individual) {
-    const totalPermitido = packSeleccionado?.pack_items.reduce((sum, item) => sum + item.cantidad, 0) || 0;
-    const cupoRestante = totalPermitido - images.length;
-    if (totalPermitido > 0 && files.length > cupoRestante) {
-      alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
-      e.target.value = null;
-      return;
-    }
+      const totalPermitido = packSeleccionado?.pack_items.reduce((sum, item) => sum + item.cantidad, 0) || 0;
+      const cupoRestante = totalPermitido - images.length;
+      if (totalPermitido > 0 && files.length > cupoRestante) {
+          alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
+          e.target.value = null; 
+          return;
+      }
   }
-
+  
   setIsUploading(true);
   setUploadProgress(0);
 
   try {
-    let currentPedidoId = pedidoId;
-    if (!currentPedidoId) {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-borrador-pedido`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          packId: selectedPackId,
-          clienteId: user.id,
-          clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
-          clienteCorreo: user.email,
-        }),
+      let currentPedidoId = pedidoId;
+      if (!currentPedidoId) {
+          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-borrador-pedido`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  packId: selectedPackId,
+                  clienteId: user.id,
+                  clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
+                  clienteCorreo: user.email,
+              }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "No se pudo crear el pedido.");
+          currentPedidoId = data.pedidoId;
+          setPedidoId(currentPedidoId);
+      }
+      
+      const formData = new FormData();
+      formData.append('pedidoId', currentPedidoId);
+      files.forEach(file => {
+          formData.append('images', file);
       });
+      
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`, {
+          method: "POST",
+          body: formData,
+      });
+
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "No se pudo crear el pedido.");
-      currentPedidoId = data.pedidoId;
-      setPedidoId(currentPedidoId);
-    }
-    
-    // 1. Prepara los archivos en un FormData para enviarlos al backend.
-    const formData = new FormData();
-    formData.append('pedidoId', currentPedidoId);
-    files.forEach(file => {
-      formData.append('images', file);
-    });
+      if (!response.ok) throw new Error(data.error || "No se pudieron subir las imágenes.");
 
-      // --- INICIO DE LA LÓGICA DE SUBIDA CON PROGRESO ---
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", `${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`);
-
-        // Escucha el evento de progreso de la subida
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = (event.loaded / event.total) * 100;
-            setUploadProgress(percentComplete);
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const data = JSON.parse(xhr.responseText);
-            setImages(prevImages => [...prevImages, ...data.uploadedImages]);
-            setStep(2);
-            resolve(data);
-          } else {
-            const errorData = JSON.parse(xhr.responseText);
-            reject(new Error(errorData.error || "No se pudieron subir las imágenes."));
-          }
-        };
-
-        xhr.onerror = () => {
-          reject(new Error("Error de red al intentar subir las imágenes."));
-        };
-
-        xhr.send(formData);
-      });
-      // --- FIN DE LA LÓGICA DE SUBIDA CON PROGRESO ---
-
-    } catch (error) {
+      setImages(prevImages => [...prevImages, ...data.uploadedImages]);
+      setStep(2);
+      
+  } catch (error) {
       alert("Error al subir las imágenes: " + error.message);
       console.error("Error en handleImageUpload:", error);
-    } finally {
+  } finally {
       setIsUploading(false);
-    }
-  };
+  }
+};
 
   const handleReset = () => {
     localStorage.removeItem('pedidoEnProgreso');
