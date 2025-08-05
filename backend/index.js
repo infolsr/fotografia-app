@@ -14,13 +14,20 @@ const app = express();
 
 //app.use(cors());
 
-// 1. Define la URL de tu frontend desde una variable de entorno.
-const clientURL = process.env.CLIENT_URL;
-// 2. Configura las opciones de CORS para permitir solo ese origen.
+// 1. Lee la lista de URLs permitidas desde las variables de entorno y la convierte en un array.
+const whitelist = process.env.CLIENT_URLS ? process.env.CLIENT_URLS.split(',') : [];
+console.log('Orígenes permitidos por CORS:', whitelist);
+
+// 2. Configura las opciones de CORS para que revise la whitelist.
 const corsOptions = {
-  origin: clientURL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type'],
+  origin: function (origin, callback) {
+    // Permite peticiones si el origen está en la whitelist (o si no hay origen, como en las pruebas de servidor)
+    if (whitelist.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
   credentials: true
 };
 // 3. Usa el middleware de CORS con las opciones seguras ANTES de tus rutas.
@@ -256,7 +263,8 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
   }
 });
 
-const PORT = 4000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor backend seguro y completo en http://localhost:${PORT}`);
+// --- INICIO DEL SERVIDOR ---
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor backend escuchando en el puerto ${PORT}`);
 });
