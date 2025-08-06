@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
-import { optimizeImage } from './utils/optimizeImage';
 
-// --- 👇 SE AÑADEN LAS VARIABLES DE ENTORNO FALTANTES 👇 ---
+// Se leen las variables de entorno necesarias
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 
 const RemoteUploadPage = () => {
   const [searchParams] = useSearchParams();
@@ -13,7 +11,7 @@ const RemoteUploadPage = () => {
   const [status, setStatus] = useState('validando');
   const [pedidoId, setPedidoId] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     const validateToken = async () => {
@@ -41,51 +39,60 @@ const RemoteUploadPage = () => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    if (files.length > 20) {
-      alert("Puedes seleccionar un máximo de 20 fotos a la vez.");
+    // --- 👇 INICIO DE LA VALIDACIÓN AÑADIDA 👇 ---
+    // Se aplica el límite de subida para dispositivos móviles.
+    const uploadLimit = 15; 
+    if (files.length > uploadLimit) {
+      alert(`Puedes seleccionar un máximo de ${uploadLimit} fotos a la vez para una subida estable.`);
+      e.target.value = null; // Limpia el input para una nueva selección
       return;
     }
+    // --- 👆 FIN DE LA VALIDACIÓN 👆 ---
 
     setStatus('subiendo');
-    setUploadProgress({ current: 0, total: files.length });
+    setUploadProgress(0);
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+    try {
+      const formData = new FormData();
+      formData.append('pedidoId', pedidoId);
+      files.forEach(file => {
+        formData.append('images', file);
+      });
 
-      try {
-        const optimizedFile = await optimizeImage(file);
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_BASE_URL}/subir-imagenes`);
 
-        const formData = new FormData();
-        formData.append("file", optimizedFile);
-        formData.append("upload_preset", "FotosPublicas");
-        formData.append("folder", "Pedidos");
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            setUploadProgress(percentComplete);
+          }
+        };
 
-        // --- 👇 LA CORRECCIÓN SE USA AQUÍ 👇 ---
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-          method: "POST",
-          body: formData,
-        });
-        const cloudinaryData = await res.json();
-        if (!res.ok) throw new Error(cloudinaryData.error.message || 'Error en Cloudinary');
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || "No se pudieron subir las imágenes."));
+            } catch {
+              reject(new Error("Ocurrió un error inesperado en el servidor."));
+            }
+          }
+        };
 
-        const { error: supabaseError } = await supabase.from("imagenes_pedido").insert([{
-          pedido_id: pedidoId,
-          url: cloudinaryData.secure_url,
-          url_original: cloudinaryData.secure_url,
-          public_id: cloudinaryData.public_id,
-        }]);
+        xhr.onerror = () => reject(new Error("Error de red al intentar subir las imágenes."));
+        xhr.send(formData);
+      });
+      
+      setStatus('completado');
 
-        if (supabaseError) throw supabaseError;
-        
-      } catch (err) {
-        setErrorMsg(`Error al subir el archivo ${file.name}: ${err.message}`);
-        setStatus('error');
-        return;
-      }
+    } catch (err) {
+      setErrorMsg(`Error al subir los archivos: ${err.message}`);
+      setStatus('error');
     }
-
-    setStatus('completado');
   };
 
   const renderContent = () => {
@@ -98,9 +105,9 @@ const RemoteUploadPage = () => {
         return (
           <div>
             <p className="text-lg font-semibold">Subiendo imágenes...</p>
-            <p>{uploadProgress.current} de {uploadProgress.total}</p>
+            <p>{Math.round(uploadProgress)}%</p>
             <div className="w-full bg-gray-200 rounded-full h-4 mt-2">
-              <div className="bg-blue-600 h-4 rounded-full" style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}></div>
+              <div className="bg-blue-600 h-4 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
             </div>
           </div>
         );
