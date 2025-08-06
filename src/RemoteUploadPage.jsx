@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
+import { optimizeImage } from './utils/optimizeImage'; // Reutilizamos la optimización
+
+// Se leen las variables de entorno
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 
 const RemoteUploadPage = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-
-  // Estados para gestionar el flujo: validando, listo, subiendo, completado, error
   const [status, setStatus] = useState('validando');
   const [pedidoId, setPedidoId] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -19,14 +22,14 @@ const RemoteUploadPage = () => {
         setStatus('error');
         return;
       }
-
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}//validar-sesion-remota/${token}`);
+        // Se usa la variable de entorno para la URL
+        const response = await fetch(`${API_BASE_URL}/validar-sesion-remota/${token}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         
         setPedidoId(data.pedidoId);
-        setStatus('listo'); // Token validado, listo para subir
+        setStatus('listo');
       } catch (err) {
         setErrorMsg(err.message);
         setStatus('error');
@@ -39,6 +42,11 @@ const RemoteUploadPage = () => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
+    if (files.length > 20) {
+      alert("Puedes seleccionar un máximo de 20 fotos a la vez.");
+      return;
+    }
+
     setStatus('subiendo');
     setUploadProgress({ current: 0, total: files.length });
 
@@ -47,26 +55,25 @@ const RemoteUploadPage = () => {
       setUploadProgress(prev => ({ ...prev, current: i + 1 }));
 
       try {
-        // 1. Subir a Cloudinary
+        const optimizedFile = await optimizeImage(file);
+
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("file", optimizedFile);
         formData.append("upload_preset", "FotosPublicas");
         formData.append("folder", "Pedidos");
 
-        const res = await fetch("https://api.cloudinary.com/v1_1/dj0lklrks/image/upload", {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
           method: "POST",
           body: formData,
         });
         const cloudinaryData = await res.json();
         if (!res.ok) throw new Error(cloudinaryData.error.message || 'Error en Cloudinary');
 
-        // 2. Guardar en Supabase
         const { error: supabaseError } = await supabase.from("imagenes_pedido").insert([{
           pedido_id: pedidoId,
           url: cloudinaryData.secure_url,
+          url_original: cloudinaryData.secure_url,
           public_id: cloudinaryData.public_id,
-          vigente: true,
-          subida_en: new Date().toISOString(),
         }]);
 
         if (supabaseError) throw supabaseError;
@@ -74,7 +81,7 @@ const RemoteUploadPage = () => {
       } catch (err) {
         setErrorMsg(`Error al subir el archivo ${file.name}: ${err.message}`);
         setStatus('error');
-        return; // Detener el proceso si una imagen falla
+        return;
       }
     }
 
