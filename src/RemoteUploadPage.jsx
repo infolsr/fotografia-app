@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
-import { optimizeImage } from './utils/optimizeImage'; // Reutilizamos la optimización
+import { optimizeImage } from './utils/optimizeImage';
 
-// Se leen las variables de entorno
+// --- 👇 SE AÑADEN LAS VARIABLES DE ENTORNO FALTANTES 👇 ---
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 
@@ -23,7 +23,6 @@ const RemoteUploadPage = () => {
         return;
       }
       try {
-        // Se usa la variable de entorno para la URL
         const response = await fetch(`${API_BASE_URL}/validar-sesion-remota/${token}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
@@ -62,6 +61,7 @@ const RemoteUploadPage = () => {
         formData.append("upload_preset", "FotosPublicas");
         formData.append("folder", "Pedidos");
 
+        // --- 👇 LA CORRECCIÓN SE USA AQUÍ 👇 ---
         const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
           method: "POST",
           body: formData,
