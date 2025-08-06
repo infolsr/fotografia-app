@@ -42,6 +42,7 @@ const ClienteFlow = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const isMobile = useIsMobile(); // Se llama al hook para obtener el valor
+  const fileInputRef = useRef(null);
 
   // --- LÓGICA DE DATOS Y PERSISTENCIA ---
   useEffect(() => {
@@ -86,6 +87,9 @@ const ClienteFlow = () => {
   // --- HANDLERS DE EVENTOS ---
   const handlePackSelect = (packId) => {
     setSelectedPackId(packId.toString());
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 100);
   };
   
   // En src/App.jsx, dentro del componente ClienteFlow
@@ -144,16 +148,43 @@ const handleImageUpload = async (e) => {
           formData.append('images', file);
       });
       
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`, {
-          method: "POST",
-          body: formData,
+      // --- INICIO DE LA LÓGICA CORREGIDA ---
+      // Se usa XMLHttpRequest para poder medir el progreso de la subida
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`);
+
+        // Escucha el evento de progreso
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            setUploadProgress(percentComplete);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            // Se actualiza el estado de las imágenes y se avanza al siguiente paso
+            setImages(prevImages => [...prevImages, ...data.uploadedImages]);
+            if (step === 1) { // Solo avanza si estamos en el primer paso
+                setStep(2);
+            }
+            resolve(data);
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || "No se pudieron subir las imágenes."));
+            } catch {
+              reject(new Error("Ocurrió un error inesperado en el servidor."));
+            }
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Error de red al intentar subir las imágenes."));
+        xhr.send(formData);
       });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "No se pudieron subir las imágenes.");
-
-      setImages(prevImages => [...prevImages, ...data.uploadedImages]);
-      setStep(2);
+      // --- FIN DE LA LÓGICA CORREGIDA ---
       
   } catch (error) {
       alert("Error al subir las imágenes: " + error.message);
@@ -215,7 +246,16 @@ const handleImageUpload = async (e) => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {productos.map(p => (
-                    <div key={p.id} onClick={() => handlePackSelect(p.id)} className={`p-6 rounded-3xl shadow-soft cursor-pointer transition-all duration-300 flex flex-col text-center ${selectedPackId === p.id.toString() ? 'ring-4 ring-luitania-sage bg-white scale-105' : 'bg-white/70 hover:shadow-xl'}`}>
+                    <div key={p.id} onClick={() => handlePackSelect(p.id)} style={{ backgroundColor: p.color_hex || '#FFFFFF' }} className={`p-6 rounded-3xl shadow-soft cursor-pointer transition-all duration-300 flex flex-col text-center ${selectedPackId === p.id.toString() ? 'ring-4 ring-luitania-sage bg-white scale-105' : 'bg-white/70 hover:shadow-xl'}`}>
+                        {p.imagen_url && (
+                          <div className="mb-4 h-32 flex items-center justify-center">
+                            <img 
+                              src={p.imagen_url} 
+                              alt={`Imagen de ${p.nombre_pack}`}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                        )}
                       <h3 className="text-xl mb-2">{p.nombre_pack}</h3>
                       <p className="text-sm text-luitania-textbrown/80 flex-grow">{p.descripcion}</p>
                       <div className="my-4">
@@ -230,14 +270,17 @@ const handleImageUpload = async (e) => {
                 </div>
               )}
               <div className="text-center mt-10">
-                <label className={`btn-primary ${!selectedPackId || isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  {isUploading ? `Subiendo ${Math.round(uploadProgress)}%...` : 'Siguiente: Subir Fotos'}
+
                   <input
-                    type="file" accept="image/*" multiple
-                    onChange={handleImageUpload} className="hidden"
+                    ref={fileInputRef} // Se le asigna la referencia
+                    type="file" 
+                    accept="image/*" 
+                    multiple
+                    onChange={handleImageUpload} 
+                    className="hidden"
                     disabled={!selectedPackId || loadingProductos || isUploading}
                   />
-                </label>
+
                 {!selectedPackId && <p className="text-xs text-luitania-textbrown/60 mt-2">Por favor, selecciona un paquete para continuar.</p>}
               </div>
             </main>

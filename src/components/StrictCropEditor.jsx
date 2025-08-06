@@ -96,7 +96,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   useEffect(() => {
     // 1. Asegurarse de que tenemos un pedidoId para escuchar.
     if (!pedidoId) return;
-
+    console.log(`%c[StrictCropEditor] Suscribiéndose a cambios en tiempo real para el pedido: ${pedidoId}`, 'color: purple; font-weight: bold;');
     // 2. Crear un canal de comunicación único para este pedido.
     const channel = supabase.channel(`pedido-imagenes-${pedidoId}`);
 
@@ -110,15 +110,23 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             filter: `pedido_id=eq.${pedidoId}` // Escuchar solo cambios para el pedido actual.
         },
         (payload) => {
-            console.log('Nueva imagen recibida en tiempo real:', payload.new);
+            console.log('%c[StrictCropEditor] ¡NUEVA IMAGEN RECIBIDA DE SUPABASE REALTIME!', 'color: red; font-weight: bold;', payload.new);
             // 4. Añadir la nueva imagen al estado local, actualizando la UI.
-            setImages(currentImages => [...currentImages, payload.new]);
+            setImages(currentImages => {
+              // Evita añadir duplicados si la imagen ya existe
+              if (currentImages.some(img => img.id === payload.new.id)) {
+                console.log(`%c[StrictCropEditor] DUPLICADO DETECTADO. La imagen con id ${payload.new.id} ya existe. No se añadirá.`, 'color: orange;');
+                return currentImages;
+              }
+              return [...currentImages, payload.new];
+            });
         }
     ).subscribe();
 
     // 5. Función de limpieza para desconectarse del canal cuando el componente ya no es visible.
     return () => {
-        supabase.removeChannel(channel);
+      console.log(`%c[StrictCropEditor] Desuscribiéndose de los cambios en tiempo real.`, 'color: purple;');
+      supabase.removeChannel(channel);
     };
   }, [pedidoId, setImages]); // Dependencias para el efecto.
 
@@ -292,7 +300,16 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             {/* 👆 FIN DEL BLOQUE AÑADIDO */}
         </div>
         <div className="text-center flex justify-center items-center gap-4">
-          <label className="btn-secondary cursor-pointer">+ Agregar más fotos<input type="file" multiple accept="image/*" className="hidden" onChange={onAddImages} /></label>
+          <label className="btn-secondary cursor-pointer">
+            + Agregar más fotos
+            <input 
+              type="file" 
+              multiple
+              accept="image/*" 
+              className="hidden"
+              onChange={onAddImages} 
+            />
+          </label>
           <button onClick={() => setShowQRModal(true)} className="btn-secondary">Añadir desde móvil (QR)</button>
         </div>
         
