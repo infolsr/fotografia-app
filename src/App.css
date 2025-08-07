@@ -31,4 +31,14 @@
   .btn-secondary:hover {
      @apply bg-luitania-sage text-white;
   }
+
+    .blink-me {
+    animation: blinker 1.5s linear infinite;
+  }
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0.3;
+  }
 }

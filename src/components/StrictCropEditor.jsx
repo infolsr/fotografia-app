@@ -159,98 +159,58 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   };
 
   const handleConfirmAndContinue = async () => {
-      // --- INICIO DE LA NUEVA VALIDACIÓN DETALLADA ---
-  if (selectedPack && !selectedPack.es_individual) {
-    // 1. Contamos cuántas imágenes han sido asignadas a cada tipo de ítem.
-    const assignments = images.reduce((acc, img) => {
-      const id = img.pack_item_id;
-      if (id) {
-        acc[id] = (acc[id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-
-    const errorMessages = [];
-    
-    // 2. Comparamos los conteos con lo que el paquete requiere para cada ítem.
-    for (const item of selectedPack.pack_items) {
-      const assignedCount = assignments[item.id] || 0;
-      if (assignedCount !== item.cantidad) {
-        const itemDescription = item.es_regalo ? `Regalo: ${item.formato_impresion}` : `Foto ${item.formato_impresion}`;
-        errorMessages.push(`- Para "${itemDescription}", se requieren ${item.cantidad} fotos, pero has asignado ${assignedCount}.`);
-      }
-    }
-
-    // 3. Si hay algún error, mostramos una alerta detallada y detenemos el proceso.
-    if (errorMessages.length > 0) {
-      alert(
-        "La asignación de fotos no coincide con tu paquete:\n\n" +
-        errorMessages.join("\n") +
-        "\n\nPor favor, usa el menú desplegable en cada imagen para asignarlas correctamente."
-      );
-      return; // Detiene la ejecución
-    }
-  }
-  // --- FIN DE LA NUEVA VALIDACIÓN ---
-    // La validación ahora la hace el botón deshabilitado, no se necesita la alerta aquí.
     setIsLoading(true);
-    setUploadProgress(0);
+
     try {
+      // 1. Recolecta los datos de transformación de cada imagen en un array.
+      // Ya no se procesa nada en el cliente, solo se juntan los datos.
+      const transformationData = images.map(img => {
+        // Obtenemos el formato de impresión asignado para pasarlo al backend
         const allPackItems = [regularItem, ...giftItems].filter(Boolean);
-        const currentImages = images;
-        const aspectoPorTamanio = { "10x15": { width: 1000, height: 1500 }, "13x18": { width: 1300, height: 1800 }, "15x20": { width: 1500, height: 2000 }, "carta": { width: 1275, height: 1650 }, "a4": { width: 1240, height: 1754 } };
-        const processedImagesData = [];
-        
-        for (let i = 0; i < currentImages.length; i++) {
-            const img = currentImages[i];
-            if (!img.naturalWidth) {
-                processedImagesData.push(img);
-                setUploadProgress(((i + 1) / currentImages.length) * 100);
-                continue;
-            }
+        const assignedItem = allPackItems.find(item => item.id === img.pack_item_id);
+        const formatoAsignado = assignedItem ? assignedItem.formato_impresion : '10x15';
 
-            // Lógica corregida para obtener el formato del ítem asignado
-            const assignedItem = allPackItems.find(item => item.id === img.pack_item_id);
-            const formatoAsignado = assignedItem ? assignedItem.formato_impresion : '10x15';
-            
-            const printSize = aspectoPorTamanio[formatoAsignado.toLowerCase()];
-             if (!printSize) {
-                throw new Error(`El formato de impresión "${formatoAsignado}" no es válido o no está configurado.`);
-            }
-            const adjustedCropParams = getFinalCropFromView({ ...img, assignedFormat: formatoAsignado });
+        return {
+          id: img.id, // ID de la imagen en la tabla imagenes_pedido
+          public_id: img.public_id,
+          imagePosition: img.imagePosition,
+          zoom: img.zoom,
+          filter: img.filter,
+          hasBorder: img.hasBorder,
+          isFlipped: img.isFlipped,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          formatoAsignado: formatoAsignado,
+          pack_item_id: img.pack_item_id,
+          acabado: img.paperFinish || 'brillante', // Mantenemos el acabado del papel
+        };
+      });
 
-            const longSide = Math.max(printSize.width, printSize.height);
-            const shortSide = Math.min(printSize.width, printSize.height);
-            const cropIsHorizontal = adjustedCropParams.width > adjustedCropParams.height;
-            const dimensionesFinales = cropIsHorizontal ? { width: longSide, height: shortSide } : { width: shortSide, height: longSide };
+      // 2. Envía el lote completo de "recetas" al nuevo endpoint del backend.
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/finalizar-imagenes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pedidoId: pedidoId,
+          transformations: transformationData,
+        }),
+      });
 
-            const opciones = { filter: img.filter, isFlipped: img.isFlipped, hasBorder: img.hasBorder };
-            const finalBlob = await processImage(img.url_original || img.url, adjustedCropParams, opciones, dimensionesFinales);
-            
-            const formData = new FormData();
-            formData.append("file", finalBlob, img.public_id);
-            formData.append("public_id", img.public_id);
-            const res = await fetch("https://luitania-backend.onrender.com/sobrescribir-imagen", { method: "POST", body: formData });
-            const cloudinaryData = await res.json();
-            if (!res.ok) throw new Error(cloudinaryData.error || "Error en el servidor");
-            
-            await supabase.from('imagenes_pedido').update({ 
-                url: cloudinaryData.secure_url, 
-                acabado: img.paperFinish || 'brillante', 
-                filtro: img.filter || 'ninguno', 
-                borde: img.hasBorder || false, 
-                espejado: img.isFlipped || false,
-                pack_item_id: img.pack_item_id
-            }).eq('id', img.id);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Error en el servidor");
 
-            processedImagesData.push({ ...img, url: cloudinaryData.secure_url });
-            setUploadProgress(((i + 1) / currentImages.length) * 100);
-        }
-        setImages(processedImagesData);
-        setTimeout(() => { setIsLoading(false); onCropsConfirmed(); }, 500);
-    } catch (error) {
-        alert("Error: " + error.message);
+      // 3. Actualiza el estado local con las nuevas URLs devueltas por el backend.
+      setImages(result.updatedImages);
+      
+      // 4. Continúa al siguiente paso del flujo.
+      setTimeout(() => {
         setIsLoading(false);
+        onCropsConfirmed();
+      }, 500);
+
+    } catch (error) {
+      alert("Error al finalizar los recortes: " + error.message);
+      setIsLoading(false);
     }
   };
   

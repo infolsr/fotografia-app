@@ -43,6 +43,7 @@ const ClienteFlow = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const isMobile = useIsMobile(); // Se llama al hook para obtener el valor
   const fileInputRef = useRef(null);
+  const [uploadMessage, setUploadMessage] = useState("");
 
   // --- LÓGICA DE DATOS Y PERSISTENCIA ---
   useEffect(() => {
@@ -122,6 +123,7 @@ const handleImageUpload = async (e) => {
   
   setIsUploading(true);
   setUploadProgress(0);
+  setUploadMessage("Subiendo imágenes...");
 
   try {
       let currentPedidoId = pedidoId;
@@ -159,6 +161,10 @@ const handleImageUpload = async (e) => {
           if (event.lengthComputable) {
             const percentComplete = (event.loaded / event.total) * 100;
             setUploadProgress(percentComplete);
+            if (percentComplete === 100) {
+            // <-- CAMBIO CLAVE AQUÍ
+            setUploadMessage("Procesando en el servidor...");
+          }
           }
         };
 
@@ -223,7 +229,7 @@ const handleImageUpload = async (e) => {
     <div className="min-h-screen bg-luitania-cream p-4 sm:p-8">
       {isUploading && (
         <div className="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50">
-          <CircularProgress progress={uploadProgress} />
+          <CircularProgress progress={uploadProgress} message={uploadMessage} />
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const CircularProgress = ({ progress = 0 }) => {
+const CircularProgress = ({ progress = 0, message = "Procesando", isProcessing = false }) => {
   // ✅ Se aumenta el radio y el grosor para un tamaño mayor
   const radius = 80;
   const stroke = 12;
@@ -39,9 +39,13 @@ const CircularProgress = ({ progress = 0 }) => {
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        {/* ✅ Se aumenta el tamaño del texto */}
         <span className="text-4xl font-bold text-gray-700">{`${Math.round(progress)}%`}</span>
-        <span className="text-base text-gray-500">Procesando</span>
+        {/* Se añade la clase 'blink-me' condicionalmente */}
+        <span 
+          className={`text-base text-gray-500 mt-2 ${isProcessing ? 'blink-me' : ''}`}
+        >
+          {message}
+        </span>
       </div>
     </div>
   );

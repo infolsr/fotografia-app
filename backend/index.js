@@ -219,7 +219,7 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
     if (!req.files || req.files.length === 0) {
       throw new Error("No se recibieron imágenes.");
     }
-// 1. Obtenemos los datos del cliente desde el pedido para construir el nombre
+    
     const { data: pedidoData, error: pedidoError } = await supabase
       .from('pedidos')
       .select('nombre_cliente')
@@ -234,59 +234,203 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
     
     const shortOrderId = pedidoId.substring(0, 8);
 
+    // --- INICIO: LÓGICA DE RESILIENCIA ---
     const uploadedImagesData = [];
-
-    // Usamos un bucle for...of para poder usar await y un índice
+    const failedImages = []; // Array para registrar las imágenes que fallen
+    
     let index = 0;
     for (const file of req.files) {
-      const optimizedBuffer = await sharp(file.buffer)
-        .rotate() // <-- AÑADE ESTA LÍNEA
-        .resize({ 
-          width: 1920, 
-          height: 1920, 
-          fit: 'inside', // 'inside' asegura que la imagen quepa sin ser recortada ni deformada
-          withoutEnlargement: true // Evita que imágenes pequeñas se agranden
-        })
-        .jpeg({ quality: 90 })
-        .toBuffer();
+      try { // El bloque try/catch ahora está DENTRO del bucle
+        const optimizedBuffer = await sharp(file.buffer)
+          .rotate()
+          .resize({ 
+            width: 1920, 
+            height: 1920, 
+            fit: 'inside',
+            withoutEnlargement: true 
+          })
+          .jpeg({ quality: 90 })
+          .toBuffer();
 
-      // 2. Se construye el public_id personalizado
-      const incrementalNumber = index + 1; // El correlativo
-      const customPublicId = `${shortOrderId}_${sanitizedClientName}_${incrementalNumber}`;
+        const incrementalNumber = index + 1;
+        // Se añade un sufijo aleatorio para evitar colisiones en subidas simultáneas
+        const randomSuffix = crypto.randomBytes(4).toString('hex'); 
+        const customPublicId = `${shortOrderId}_${sanitizedClientName}_${incrementalNumber}_${randomSuffix}`;
 
-      const uploadResult = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { 
-            folder: "Pedidos", 
-            resource_type: "image",
-            public_id: customPublicId // <-- Se usa el nombre personalizado aquí
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-        uploadStream.end(optimizedBuffer);
-      });
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { 
+              folder: "Pedidos", 
+              resource_type: "image",
+              public_id: customPublicId
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          uploadStream.end(optimizedBuffer);
+        });
 
-      const { data: newImageRecord, error: supabaseError } = await supabase
-        .from("imagenes_pedido").insert([{
-            pedido_id: pedidoId,
-            url: uploadResult.secure_url,
-            url_original: uploadResult.secure_url,
-            public_id: uploadResult.public_id,
-        }]).select().single();
-      
-      if (supabaseError) throw supabaseError;
-      
-      uploadedImagesData.push(newImageRecord);
-      index++; // Incrementamos el correlativo
+        const { data: newImageRecord, error: supabaseError } = await supabase
+          .from("imagenes_pedido").insert([{
+              pedido_id: pedidoId,
+              url: uploadResult.secure_url,
+              url_original: uploadResult.secure_url,
+              public_id: uploadResult.public_id,
+          }]).select().single();
+        
+        if (supabaseError) throw supabaseError;
+        
+        // Si todo sale bien, se añade al array de éxitos
+        uploadedImagesData.push(newImageRecord);
+
+      } catch (error) {
+        // Si esta imagen falla, se registra su nombre y el bucle continúa
+        console.error(`Falló la subida de la imagen: ${file.originalname}`, error);
+        failedImages.push(file.originalname);
+      }
+      index++;
     }
 
-    res.json({ success: true, uploadedImages: uploadedImagesData });
+    // Se envía una respuesta detallada con los resultados
+    res.status(207).json({ 
+        success: true, 
+        message: "Proceso de subida completado.",
+        uploadedImages: uploadedImagesData,
+        failures: failedImages
+      });
+    // --- FIN: LÓGICA DE RESILIENCIA ---
 
   } catch (error) {
-    console.error("❌ ERROR en /subir-imagenes:", error);
+    // Este catch externo ahora solo atrapa errores iniciales (ej. pedido no encontrado)
+    console.error("❌ ERROR GENERAL en /subir-imagenes:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- FUNCIÓN DE AYUDA PARA TRADUCIR LA "RECETA" A PARÁMETROS DE CLOUDINARY ---
+const getCloudinaryCrop = (img) => {
+  const { 
+    imagePosition = { x: 0, y: 0 }, 
+    zoom = 1, 
+    naturalWidth, 
+    naturalHeight, 
+    formatoAsignado = "10x15",
+  } = img;
+
+  if (!naturalWidth || !naturalHeight) {
+    return { x: 0, y: 0, width: 1, height: 1 };
+  }
+
+  const cropFormats = { "10x15": 10 / 15, "13x18": 13 / 18, "15x20": 15 / 20, "carta": 8.5 / 11, "A4": 210 / 297 };
+  let targetAspect = cropFormats[formatoAsignado.toLowerCase()] || cropFormats["10x15"];
+  
+  const imageAspect = naturalWidth / naturalHeight;
+  if ((imageAspect > 1 && targetAspect < 1) || (imageAspect < 1 && targetAspect > 1)) {
+    targetAspect = 1 / targetAspect;
+  }
+  
+  let viewportWidth = naturalWidth;
+  let viewportHeight = Math.round(viewportWidth / targetAspect);
+  if (viewportHeight > naturalHeight) {
+    viewportHeight = naturalHeight;
+    viewportWidth = Math.round(viewportHeight * targetAspect);
+  }
+
+  const finalWidth = viewportWidth / zoom;
+  const finalHeight = viewportHeight / zoom;
+
+  const zoomOffsetX = (viewportWidth - finalWidth) / 2;
+  const zoomOffsetY = (viewportHeight - finalHeight) / 2;
+
+  const panBoundX = (naturalWidth - viewportWidth) / 2;
+  const panBoundY = (naturalHeight - viewportHeight) / 2;
+  const pixelPanX = imagePosition.x * panBoundX;
+  const pixelPanY = imagePosition.y * panBoundY;
+
+  const initialX = (naturalWidth - viewportWidth) / 2;
+  const initialY = (naturalHeight - viewportHeight) / 2;
+  
+  const finalX = initialX + zoomOffsetX - pixelPanX;
+  const finalY = initialY + zoomOffsetY - pixelPanY;
+
+  return {
+    x: Math.round(finalX),
+    y: Math.round(finalY),
+    width: Math.round(finalWidth),
+    height: Math.round(finalHeight),
+  };
+};
+
+// --- NUEVO ENDPOINT PARA FINALIZAR IMÁGENES CON TRANSFORMACIONES DE CLOUDINARY ---
+app.post('/finalizar-imagenes', async (req, res) => {
+  try {
+    const { transformations } = req.body;
+    if (!transformations || !Array.isArray(transformations)) {
+      throw new Error("No se recibió la data de transformaciones.");
+    }
+
+    const updatePromises = transformations.map(async (t) => {
+      // 1. Calcula los parámetros de recorte usando la función de ayuda.
+      const cropParams = getCloudinaryCrop(t);
+
+      // 2. Construye el array de transformaciones para Cloudinary.
+      const cloudinaryTransformations = [
+        { ...cropParams, crop: 'crop' }, // Aplica el recorte principal
+        { width: 1800, height: 2700, crop: 'limit' } // Limita el tamaño final para impresión
+      ];
+
+      if (t.isFlipped) {
+        cloudinaryTransformations.push({ angle: 'hflip' });
+      }
+      if (t.filter === 'bn') {
+        cloudinaryTransformations.push({ effect: 'grayscale' });
+      }
+      if (t.filter === 'sepia') {
+        cloudinaryTransformations.push({ effect: 'sepia' });
+      }
+      if (t.hasBorder) {
+        // Añade un borde blanco del 2.5% del ancho de la imagen.
+        cloudinaryTransformations.push({
+          border: '2.5vw_solid_white',
+          crop: 'limit'
+        });
+      }
+
+      // 3. Genera la nueva URL final.
+      const finalUrl = cloudinary.url(t.public_id, {
+        transformation: cloudinaryTransformations,
+        secure: true
+      });
+
+      // 4. Actualiza la fila en Supabase con la nueva URL y los datos finales.
+      const { data: updatedImage, error } = await supabase
+        .from('imagenes_pedido')
+        .update({ 
+          url: finalUrl,
+          filtro: t.filter,
+          borde: t.hasBorder,
+          espejado: t.isFlipped,
+          acabado: t.acabado,
+          pack_item_id: t.pack_item_id
+        })
+        .eq('id', t.id)
+        .select()
+        .single();
+      
+      if (error) throw new Error(`No se pudo actualizar la imagen con id ${t.id}: ${error.message}`);
+      
+      return updatedImage;
+    });
+
+    // Espera a que todas las actualizaciones se completen.
+    const updatedImages = await Promise.all(updatePromises);
+    
+    res.json({ success: true, updatedImages });
+
+  } catch (error) {
+    console.error("❌ ERROR al finalizar imágenes:", error);
     res.status(500).json({ error: error.message });
   }
 });
