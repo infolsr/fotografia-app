@@ -8,7 +8,7 @@ import { getFinalCropFromView } from "../utils/getFinalCropFromView";
 // Importa processImage si no está ya importado
 import { processImage } from '../utils/cropImage'; 
 
-const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedidoId, onCropsConfirmed, onAddImages }) => {
+const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedidoId, onCropsConfirmed, onAddImages, onReset  }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingImageIndex, setEditingImageIndex] = useState(null);
@@ -336,7 +336,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             );
           })}
         </div>
-        <div className="col-span-full mt-4 pb-8 flex flex-col items-center justify-center">
+        <div className="col-span-full mt-4 pb-8 flex flex-col items-center justify-center gap-4">
           <button 
             onClick={handleConfirmAndContinue} 
             className="btn-primary"
@@ -344,6 +344,15 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
           >
             Confirmar y Continuar
           </button>
+
+                  {/* 3. AÑADE ESTE NUEVO BOTÓN AQUÍ */}
+        <button 
+          onClick={onReset} 
+          className="text-sm text-red-600 hover:underline"
+        >
+          Anular y Empezar de Nuevo
+        </button>
+        
           {isConfirmDisabled && (
             <p className="text-xs text-luitania-textbrown/60 mt-2">
               Debes subir todas las imágenes de tu paquete para poder continuar.

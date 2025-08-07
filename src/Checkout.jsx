@@ -5,7 +5,7 @@ import { useUser } from "@supabase/auth-helpers-react";
 // ✅ Se cambian los props para recibir el pedidoId y el selectedPack completo
 const Checkout = ({ pedidoId, images, selectedPack, onBack, onReset }) => {
   const user = useUser();
-  const [metodoPago, setMetodoPago] = useState("mercadopago");
+  const [metodoPago, setMetodoPago] = useState("transferencia");
   const [cliente, setCliente] = useState({ nombre: user?.user_metadata?.name || "", correo: user?.email || "", telefono: "" });
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [accionPago, setAccionPago] = useState(null);
@@ -151,8 +151,8 @@ const Checkout = ({ pedidoId, images, selectedPack, onBack, onReset }) => {
         <div className="mb-6">
             <label className="block mb-2 font-medium">Selecciona método de pago:</label>
             <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="border rounded p-2 w-full bg-white">
-                <option value="mercadopago">Mercado Pago (Tarjetas de crédito/débito)</option>
                 <option value="transferencia">Transferencia Electrónica</option>
+                {/*<option value="mercadopago">Mercado Pago (Tarjetas de crédito/débito)</option>*/}
             </select>
         </div>
         {/* 👇 INICIO DEL BLOQUE AÑADIDO */}
@@ -163,12 +163,12 @@ const Checkout = ({ pedidoId, images, selectedPack, onBack, onReset }) => {
                 Para finalizar, realiza la transferencia por el monto total y envía el comprobante a nuestro correo.
               </p>
             <div className="space-y-1 text-luitania-textbrown">
-              <p><strong>Banco:</strong> Banco Estado</p>
-              <p><strong>Tipo de Cuenta:</strong> Cuenta RUT</p>
-              <p><strong>N° de Cuenta:</strong> 15455513</p>
+              <p><strong>Banco:</strong> Mercado Pago</p>
+              <p><strong>Tipo de Cuenta:</strong> Cuenta Vista</p>
+              <p><strong>N° de Cuenta:</strong> 1048829808</p>
               <p><strong>Nombre:</strong> Britania Lara Naranjo</p>
               <p><strong>RUT:</strong> 15455513-7</p>
-              <p><strong>Correo:</strong> britania.lara19@gmail.com</p>
+              <p><strong>Correo:</strong> luitaniafotos@gmail.com</p>
               <p className="font-bold mt-2"><strong>Monto:</strong> ${total.toLocaleString('es-CL')}</p>
             </div>
           </div>

@@ -73,6 +73,7 @@ app.post('/crear-borrador-pedido', async (req, res) => {
         nombre_cliente: clienteNombre,
         correo_cliente: clienteCorreo,
         formato: pack.nombre_pack,
+        pack_id: packId,
         status: 'creando',
         total: totalCongelado,
         total_congelado: totalCongelado,

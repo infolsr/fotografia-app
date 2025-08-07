@@ -39,13 +39,18 @@ const ClienteFlow = () => {
   const [selectedPackId, setSelectedPackId] = useState("");
   const [pedidoId, setPedidoId] = useState(null);
   const [loadingProductos, setLoadingProductos] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const isMobile = useIsMobile(); // Se llama al hook para obtener el valor
+  
+  // Este estado ahora controla CUALQUIER proceso de fondo (subida, anulación, etc.)
+  const [isProcessing, setIsProcessing] = useState(false); 
+  const [processingMessage, setProcessingMessage] = useState("");
+  
+  const isMobile = useIsMobile();
   const fileInputRef = useRef(null);
-  const [uploadMessage, setUploadMessage] = useState("");
 
   // --- LÓGICA DE DATOS Y PERSISTENCIA ---
+
+  // 1. Carga de productos
   useEffect(() => {
     const fetchProductos = async () => {
       setLoadingProductos(true);
@@ -57,148 +62,154 @@ const ClienteFlow = () => {
     fetchProductos();
   }, []);
 
+   // 2. LÓGICA DE AUTOGUARDADO (CORREGIDA)
+  // Ahora protegida por el estado 'isProcessing'
   useEffect(() => {
+    if (isProcessing) return; // No guardar si hay otro proceso en curso
+
     if (pedidoId && step > 1) {
       const imagesToSave = images.map(({ file, ...rest }) => rest);
       const pedidoEnProgreso = { pedidoId, images: imagesToSave, selectedPackId, step };
       localStorage.setItem('pedidoEnProgreso', JSON.stringify(pedidoEnProgreso));
     }
-  }, [images, pedidoId, selectedPackId, step]);
+  }, [images, pedidoId, selectedPackId, step, isProcessing]);
 
-  useEffect(() => {
+  // 3. LÓGICA DE RECUPERACIÓN (CORREGIDA)
+  // Vuelve a preguntar al usuario y se ejecuta después de cargar los productos
+useEffect(() => {
+    if (loadingProductos) return;
+
     const pedidoGuardado = localStorage.getItem('pedidoEnProgreso');
     if (pedidoGuardado) {
       if (window.confirm("Hemos encontrado un pedido sin terminar. ¿Deseas continuar?")) {
         try {
           const data = JSON.parse(pedidoGuardado);
           setPedidoId(data.pedidoId);
-          setSelectedPackId(data.selectedPackId);
+          setSelectedPackId(data.selectedPackId.toString());
           setImages(data.images); 
           setStep(data.step || 2);
-          alert("Para continuar, es posible que necesites volver a seleccionar los archivos de imagen originales si la vista previa no carga.");
         } catch (e) {
+          console.error("Error al parsear el pedido en progreso:", e);
+        } finally {
+          // MUY IMPORTANTE: Limpiamos el localStorage después de usarlo para evitar loops.
           localStorage.removeItem('pedidoEnProgreso');
         }
       } else {
+        // Si el usuario no quiere continuar, se limpia todo
         localStorage.removeItem('pedidoEnProgreso');
+        setImages([]);
+        setPedidoId(null);
+        setSelectedPackId("");
+        setStep(1);
       }
     }
-  }, []);
+  }, [loadingProductos]); 
 
   // --- HANDLERS DE EVENTOS ---
   const handlePackSelect = (packId) => {
     setSelectedPackId(packId.toString());
-    setTimeout(() => {
-      fileInputRef.current?.click();
-    }, 100);
+    setTimeout(() => fileInputRef.current?.click(), 100);
   };
   
-  // En src/App.jsx, dentro del componente ClienteFlow
 
-// En: src/App.jsx
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0 || !selectedPackId) return;
 
-const handleImageUpload = async (e) => {
-  const files = Array.from(e.target.files);
-  if (files.length === 0 || !selectedPackId) return;
+    const uploadLimit = isMobile ? 15 : 50;
+    if (files.length > uploadLimit) {
+        alert(`Puedes seleccionar un máximo de ${uploadLimit} fotos a la vez.`);
+        e.target.value = null;
+        return;
+    }
 
-  // Se mantiene la lógica de límite dinámico
-  const uploadLimit = isMobile ? 15 : 50;
-  if (files.length > uploadLimit) {
-      alert(`Puedes seleccionar un máximo de ${uploadLimit} fotos a la vez.`);
-      e.target.value = null;
-      return;
-  }
+    const packSeleccionado = productos.find(p => p.id.toString() === selectedPackId);
+    if (!packSeleccionado?.es_individual) {
+        const totalPermitido = packSeleccionado?.pack_items.reduce((sum, item) => sum + item.cantidad, 0) || 0;
+        const cupoRestante = totalPermitido - images.length;
+        if (totalPermitido > 0 && files.length > cupoRestante) {
+            alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
+            e.target.value = null; 
+            return;
+        }
+    }
+    
+    // ✅ Nombres de funciones corregidos
+    setIsProcessing(true);
+    setUploadProgress(0);
+    setProcessingMessage("Subiendo imágenes...");
 
-  // Se mantiene la validación del cupo del paquete
-  const packSeleccionado = productos.find(p => p.id.toString() === selectedPackId);
-  if (!packSeleccionado?.es_individual) {
-      const totalPermitido = packSeleccionado?.pack_items.reduce((sum, item) => sum + item.cantidad, 0) || 0;
-      const cupoRestante = totalPermitido - images.length;
-      if (totalPermitido > 0 && files.length > cupoRestante) {
-          alert(`Has seleccionado ${files.length} imágenes, pero solo puedes añadir ${cupoRestante} más para este paquete.`);
-          e.target.value = null; 
-          return;
-      }
-  }
-  
-  setIsUploading(true);
-  setUploadProgress(0);
-  setUploadMessage("Subiendo imágenes...");
+    try {
+        let currentPedidoId = pedidoId;
+        if (!currentPedidoId) {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-borrador-pedido`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    packId: selectedPackId,
+                    clienteId: user.id,
+                    clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
+                    clienteCorreo: user.email,
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "No se pudo crear el pedido.");
+            currentPedidoId = data.pedidoId;
+            setPedidoId(currentPedidoId);
+        }
+        
+        const formData = new FormData();
+        formData.append('pedidoId', currentPedidoId);
+        files.forEach(file => {
+            formData.append('images', file);
+        });
+        
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`);
 
-  try {
-      let currentPedidoId = pedidoId;
-      if (!currentPedidoId) {
-          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/crear-borrador-pedido`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                  packId: selectedPackId,
-                  clienteId: user.id,
-                  clienteNombre: user.user_metadata?.name || 'Usuario sin nombre',
-                  clienteCorreo: user.email,
-              }),
-          });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.error || "No se pudo crear el pedido.");
-          currentPedidoId = data.pedidoId;
-          setPedidoId(currentPedidoId);
-      }
-      
-      const formData = new FormData();
-      formData.append('pedidoId', currentPedidoId);
-      files.forEach(file => {
-          formData.append('images', file);
-      });
-      
-      // --- INICIO DE LA LÓGICA CORREGIDA ---
-      // Se usa XMLHttpRequest para poder medir el progreso de la subida
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", `${import.meta.env.VITE_API_BASE_URL}/subir-imagenes`);
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = (event.loaded / event.total) * 100;
+              setUploadProgress(percentComplete);
 
-        // Escucha el evento de progreso
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = (event.loaded / event.total) * 100;
-            setUploadProgress(percentComplete);
-            if (percentComplete === 100) {
-            // <-- CAMBIO CLAVE AQUÍ
-            setUploadMessage("Procesando en el servidor...");
-          }
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const data = JSON.parse(xhr.responseText);
-            // Se actualiza el estado de las imágenes y se avanza al siguiente paso
-            setImages(prevImages => [...prevImages, ...data.uploadedImages]);
-            if (step === 1) { // Solo avanza si estamos en el primer paso
-                setStep(2);
+              if (percentComplete === 100) {
+                // ✅ Nombre de función corregido
+                setProcessingMessage("Procesando en el servidor... Por favor espere.");
+              }
             }
-            resolve(data);
-          } else {
-            try {
-              const errorData = JSON.parse(xhr.responseText);
-              reject(new Error(errorData.error || "No se pudieron subir las imágenes."));
-            } catch {
-              reject(new Error("Ocurrió un error inesperado en el servidor."));
-            }
-          }
-        };
+          };
 
-        xhr.onerror = () => reject(new Error("Error de red al intentar subir las imágenes."));
-        xhr.send(formData);
-      });
-      // --- FIN DE LA LÓGICA CORREGIDA ---
-      
-  } catch (error) {
-      alert("Error al subir las imágenes: " + error.message);
-      console.error("Error en handleImageUpload:", error);
-  } finally {
-      setIsUploading(false);
-  }
-};
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              const data = JSON.parse(xhr.responseText);
+              setImages(prevImages => [...prevImages, ...data.uploadedImages]);
+              if (step === 1) {
+                  setStep(2);
+              }
+              resolve(data);
+            } else {
+              try {
+                const errorData = JSON.parse(xhr.responseText);
+                reject(new Error(errorData.error || "No se pudieron subir las imágenes."));
+              } catch {
+                reject(new Error("Ocurrió un error inesperado en el servidor."));
+              }
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Error de red al intentar subir las imágenes."));
+          xhr.send(formData);
+        });
+        
+    } catch (error) {
+        alert("Error al subir las imágenes: " + error.message);
+        console.error("Error en handleImageUpload:", error);
+    } finally {
+        // ✅ Nombre de función corregido
+        setIsProcessing(false);
+    }
+  };
 
   const handleReset = () => {
     localStorage.removeItem('pedidoEnProgreso');
@@ -206,6 +217,51 @@ const handleImageUpload = async (e) => {
     setPedidoId(null);
     setSelectedPackId("");
     setStep(1);
+  };
+
+  
+  // 4. FUNCIÓN DE ANULACIÓN Y RESETEO (ROBUSTA)
+  const handleResetAndStartOver = async () => {
+    if (!window.confirm("¿Estás seguro? Perderás todo el progreso de este pedido y las imágenes subidas se eliminarán.")) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingMessage("Anulando pedido...");
+
+    try {
+      // 1. Borra las imágenes de Cloudinary a través del backend.
+      if (images.length > 0) {
+        const publicIds = images.map(img => img.public_id).filter(Boolean);
+        if (publicIds.length > 0) {
+          await fetch(`${import.meta.env.VITE_API_BASE_URL}/eliminar-fotos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicIds }),
+          });
+        }
+      }
+      
+      // 2. Borra el pedido de la base de datos (opcional pero recomendado).
+      if (pedidoId) {
+        await supabase
+          .from('pedidos')
+          .update({ status: 'anulado' })
+          .eq('id', pedidoId);
+      }
+
+    } catch (error) {
+      console.error("Error durante la anulación:", error);
+      alert("No se pudieron eliminar las imágenes del pedido. Por favor, contacta a soporte.");
+    } finally {
+      // Esta es la parte más importante: se limpia todo al final.
+      localStorage.removeItem('pedidoEnProgreso');
+      setImages([]);
+      setPedidoId(null);
+      setSelectedPackId("");
+      setStep(1);
+      setIsProcessing(false);
+    }
   };
   
   const selectedPack = useMemo(() => {
@@ -227,13 +283,13 @@ const handleImageUpload = async (e) => {
 
   return (
     <div className="min-h-screen bg-luitania-cream p-4 sm:p-8">
-      {isUploading && (
+      {isProcessing && (
         <div className="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50">
-          <CircularProgress progress={uploadProgress} message={uploadMessage} />
+          <CircularProgress progress={uploadProgress} message={processingMessage} isProcessing={step !== 1} />
         </div>
       )}
 
-      <div className={isUploading ? 'blur-sm pointer-events-none' : ''}>
+      <div className={isProcessing ? 'blur-sm pointer-events-none' : ''}>
         {step === 1 && (
           <div className="container mx-auto">
             <header className="text-center mb-10">
@@ -284,7 +340,7 @@ const handleImageUpload = async (e) => {
                     multiple
                     onChange={handleImageUpload} 
                     className="hidden"
-                    disabled={!selectedPackId || loadingProductos || isUploading}
+                    disabled={!selectedPackId || loadingProductos || isProcessing}
                   />
 
                 {!selectedPackId && <p className="text-xs text-luitania-textbrown/60 mt-2">Por favor, selecciona un paquete para continuar.</p>}
@@ -293,7 +349,7 @@ const handleImageUpload = async (e) => {
           </div>
         )}
 
-        {step === 2 && ( <StrictCropEditor images={images} setImages={setImages} selectedPackId={selectedPackId} productos={productos} pedidoId={pedidoId} onCropsConfirmed={() => setStep(3)} onAddImages={handleImageUpload} /> )}
+        {step === 2 && ( <StrictCropEditor images={images} setImages={setImages} selectedPackId={selectedPackId} productos={productos} pedidoId={pedidoId} onCropsConfirmed={() => setStep(3)} onAddImages={handleImageUpload} onReset={handleResetAndStartOver} /> )}
         {step === 3 && ( <ReviewOrder images={images} selectedPack={selectedPack} onBack={() => setStep(2)} onCheckout={() => setStep(4)} /> )}
         {step === 4 && ( <Checkout pedidoId={pedidoId} images={images} selectedPack={selectedPack} onBack={() => setStep(3)} onReset={handleReset} /> )}
       </div>

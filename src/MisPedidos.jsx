@@ -1,22 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { useUser } from '@supabase/auth-helpers-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const MisPedidos = () => {
   const user = useUser();
+  const navigate = useNavigate();
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null); // Para deshabilitar botones durante una acción
   const [error, setError] = useState(null);
 
-  // Función para cargar los pedidos del usuario
+  // 1. OBTENCIÓN DE DATOS MEJORADA
+  // La consulta ahora incluye el conteo de imágenes de cada pedido.
   const fetchPedidos = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('pedidos')
-        .select('*')
+        .select('*, imagenes_pedido(count)') // <-- Se añade el conteo de imágenes
         .eq('cliente_id', user.id)
         .order('fecha', { ascending: false });
 
@@ -34,115 +37,138 @@ const MisPedidos = () => {
     fetchPedidos();
   }, [fetchPedidos]);
 
-
-  // --- LÓGICA DE ACCIONES DEL CLIENTE ---
-
-  const handleRetryPayment = async (pedido) => {
+  // 2. NUEVA FUNCIÓN PARA CONTINUAR UN PEDIDO EN CURSO
+  const handleContinueOrder = async (pedido) => {
+    // 1. Validamos que el pedido tenga la información necesaria.
+    if (!pedido.pack_id) {
+      alert("Error: No se puede recuperar este pedido porque no tiene un paquete asociado. Por favor, inicia uno nuevo.");
+      return;
+    }
+    
+    setActionLoading(pedido.id);
     try {
-      const response = await fetch("https://luitania-backend.onrender.com/crear-pago", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedidoId: pedido.id }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "No se pudo generar el link de pago.");
-      if (data.init_point) window.location.href = data.init_point;
-    } catch (err) {
-      alert("No se pudo generar un nuevo link de pago. Intenta más tarde.");
-      console.error("Error al reintentar el pago:", err);
+      const { data: images, error: imagesError } = await supabase
+        .from('imagenes_pedido')
+        .select('*')
+        .eq('pedido_id', pedido.id);
+
+      if (imagesError) throw imagesError;
+
+      // 2. Construimos el objeto usando el pack_id directamente. ¡No más "adivinanzas"!
+      const pedidoEnProgreso = {
+        pedidoId: pedido.id,
+        images: images || [],
+        selectedPackId: pedido.pack_id, // <-- Se usa el ID guardado
+        step: 2,
+      };
+
+      // 3. Guardamos en localStorage y navegamos.
+      localStorage.setItem('pedidoEnProgreso', JSON.stringify(pedidoEnProgreso));
+      navigate('/');
+
+    } catch (error) {
+      alert(`Error al intentar recuperar tu pedido: ${error.message}`);
+      setActionLoading(null);
     }
   };
 
-  // En src/MisPedidos.jsx
+  // 3. LÓGICA DE ANULACIÓN ROBUSTA
+  const handleCancelOrder = async (pedido) => {
+    if (!window.confirm("¿Estás seguro de que quieres anular tu pedido? Las imágenes se eliminarán permanentemente de la nube. Esta acción no se puede deshacer.")) return;
+    
+    setActionLoading(pedido.id);
+    try {
+      // a. Obtenemos los public_id de las imágenes a borrar.
+      const { data: imagenes, error: imgError } = await supabase
+        .from('imagenes_pedido')
+        .select('public_id')
+        .eq('pedido_id', pedido.id);
+      
+      if (imgError) throw imgError;
 
-const handleCancelOrder = async (pedido) => {
-  if (!window.confirm("¿Estás seguro de que quieres anular tu pedido? Las imágenes se eliminarán y esta acción no se puede deshacer.")) return;
-  
-  try {
-    const { data, error: rpcError } = await supabase.rpc('anular_mi_pedido', {
-      pedido_id_a_anular: pedido.id
-    });
+      // b. Si hay imágenes, se las enviamos al backend para que las borre de Cloudinary.
+      const publicIds = imagenes.map(img => img.public_id).filter(Boolean);
+      if (publicIds.length > 0) {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/eliminar-fotos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ publicIds }),
+        });
+        if (!response.ok) throw new Error("No se pudieron eliminar las imágenes de la nube.");
+      }
 
-    if (rpcError) throw rpcError;
+      // c. Finalmente, actualizamos el estado del pedido en nuestra base de datos.
+      await supabase.from('pedidos').update({ status: 'anulado' }).eq('id', pedido.id);
 
-    if (data && data.publicIds && data.publicIds.length > 0) {
-      await fetch('https://luitania-backend.onrender.com/eliminar-fotos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publicIds: data.publicIds }),
-      });
+      // d. Actualizamos la lista de pedidos en la vista.
+      fetchPedidos();
+
+    } catch (error) {
+      alert("Error al anular el pedido: " + error.message);
+    } finally {
+      setActionLoading(null);
     }
+  };
 
-    // ✅ Se mueven al final, después de que todo fue exitoso
-    localStorage.removeItem('pedidoEnProgreso');
-    fetchPedidos();
-    alert("Tu pedido ha sido anulado con éxito.");
-
-  } catch (error) {
-    alert("Error al anular el pedido: " + error.message);
-    console.error(error);
-  }
-};
-
-
-  if (loading) {
-    return <div className="text-center p-10">Cargando tus pedidos...</div>;
-  }
-
-  if (error) {
-    return <div className="text-center p-10 text-red-600">{error}</div>;
-  }
+  if (loading) return <div className="text-center p-10">Cargando tus pedidos...</div>;
+  if (error) return <div className="text-center p-10 text-red-600">{error}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6 border-b pb-4">Mis Pedidos</h1>
-      {pedidos.length === 0 ? (
-        <div className="text-center bg-gray-100 p-8 rounded-lg">
-          <p className="mb-4">Aún no has realizado ningún pedido.</p>
-          <Link to="/" className="btn-primary">
-            Empezar un Pedido
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 border-b pb-4">Mis Pedidos</h1>
+      <div className="mb-6">
+          <Link to="/" className="text-sm text-luitania-sage underline hover:text-luitania-textbrown transition-colors">
+              &larr; Volver a la página principal
           </Link>
+      </div>
+      {pedidos.length === 0 ? (
+        <div className="text-center bg-gray-50 p-8 rounded-lg">
+          <p className="mb-4 text-gray-700">Aún no has realizado ningún pedido.</p>
+          <Link to="/" className="btn-primary">Empezar un Pedido Nuevo</Link>
         </div>
       ) : (
         <div className="space-y-4">
           {pedidos.map((pedido) => (
-            <div key={pedido.id} className="bg-white p-4 rounded-lg shadow-md flex flex-col sm:flex-row sm:justify-between sm:items-center">
-              <div className="mb-4 sm:mb-0">
-                <p className="font-bold text-gray-800">Pedido <span className="font-mono text-sm">#{pedido.id.substring(0, 8)}</span></p>
-                <p className="text-sm text-gray-600">
-                  Fecha: {new Date(pedido.fecha).toLocaleDateString()}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Total: ${pedido.total.toLocaleString('es-CL')}
-                </p>
+            <div key={pedido.id} className="bg-white p-4 rounded-lg shadow-md border flex flex-col sm:flex-row justify-between gap-4">
+              <div className="flex-grow">
+                <p className="font-bold text-gray-800">Pedido #{pedido.id.substring(0, 8)}...</p>
+                <div className="text-sm text-gray-600 mt-2 space-y-1">
+                  <p><strong>Fecha:</strong> {new Date(pedido.fecha).toLocaleDateString()}</p>
+                  <p><strong>Total:</strong> ${(pedido.total ?? 0).toLocaleString('es-CL')}</p>
+                  {/* Se muestra la cantidad de imágenes obtenida del conteo */}
+                  <p><strong>Imágenes:</strong> {pedido.imagenes_pedido[0]?.count || 0}</p>
+                </div>
               </div>
-              <div className="text-right flex flex-col items-end gap-2 w-full sm:w-auto">
-                <span className={`px-3 py-1 text-xs font-semibold rounded-full capitalize ${
-                  pedido.status === 'pagado' ? 'bg-green-200 text-green-800' :
-                  pedido.status === 'entregado' ? 'bg-blue-200 text-blue-800' :
-                  pedido.status === 'anulado' ? 'bg-red-200 text-red-800' :
-                  'bg-yellow-200 text-yellow-800'
+              <div className="flex flex-col items-stretch sm:items-end justify-between gap-2">
+                <span className={`px-3 py-1 text-xs font-semibold rounded-full capitalize self-end ${
+                  pedido.status === 'pagado' || pedido.status === 'entregado' ? 'bg-green-100 text-green-800' :
+                  pedido.status === 'anulado' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
                 }`}>
                   {pedido.status.replace('_', ' ')}
                 </span>
                 
-                {/* Mostramos botones solo para pedidos pendientes */}
-                {(pedido.status === 'en_proceso_pago' || pedido.status === 'pendiente_pago' || pedido.status === 'por_transferencia') && (
-                  <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
+                <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                  {/* Lógica de botones condicional */}
+                  {pedido.status === 'creando' && (
                     <button 
-                      onClick={() => handleRetryPayment(pedido)}
-                      className="btn-primary text-sm w-full"
+                      onClick={() => handleContinueOrder(pedido)}
+                      disabled={actionLoading === pedido.id}
+                      className="btn-primary text-sm w-full sm:w-auto"
                     >
-                      Finalizar Pago
+                      {actionLoading === pedido.id ? 'Cargando...' : 'Continuar Pedido'}
                     </button>
+                  )}
+                  {(pedido.status === 'creando' || pedido.status === 'por_transferencia' || pedido.status === 'pendiente_pago') && (
                     <button 
                       onClick={() => handleCancelOrder(pedido)}
-                      className="w-full bg-transparent border border-red-500 text-red-500 hover:bg-red-500 hover:text-white px-3 py-2 rounded text-xs font-semibold transition-colors"
+                      disabled={actionLoading === pedido.id}
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors disabled:bg-gray-400"
                     >
-                      Anular
+                      {actionLoading === pedido.id ? 'Anulando...' : 'Anular'}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           ))}

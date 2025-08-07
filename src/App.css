@@ -26,10 +26,10 @@
   }
 
   .btn-secondary {
-     @apply px-6 py-2 bg-transparent border border-luitania-sage text-luitania-sage font-semibold rounded-xl shadow-soft transition-all duration-300;
+    @apply px-6 py-2 bg-transparent border border-luitania-sage text-luitania-sage font-semibold rounded-xl shadow-soft transition-all duration-300;
   }
   .btn-secondary:hover {
-     @apply bg-luitania-sage text-white;
+    @apply bg-luitania-sage text-white;
   }
 
     .blink-me {
