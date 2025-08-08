@@ -28,6 +28,12 @@ const AdminLayout = () => {
           <Link to="/admin/descuentos" className={`px-4 py-2 rounded-md text-sm ${getLinkClass("/admin/descuentos")}`}>
             Gestión de Descuentos
           </Link>
+
+          <div className="border-t border-gray-700 pt-4 mt-4">
+              <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-white px-4 py-2 rounded-md text-sm transition-colors">
+                  &larr; Volver al Sitio Principal
+              </Link>
+          </div>
           {/* Aquí puedes añadir más enlaces en el futuro, como "Descuentos" */}
         </nav>
       </aside>
