@@ -12,7 +12,7 @@ serve(async (req) => {
 
     let subject = '';
     let htmlBody = '';
-    const fromAddress = 'Luitania-Fotos <onboarding@resend.dev>';
+    const fromAddress = 'Luitania-Fotos <pedidos@luitania.cl>';
 
     if (record.status === 'pagado') {
       subject = `Tu Pedido #${shortOrderId} está en preparación`;
