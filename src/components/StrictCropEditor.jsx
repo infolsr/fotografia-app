@@ -200,7 +200,20 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
       if (!response.ok) throw new Error(result.error || "Error en el servidor");
 
       // 3. Actualiza el estado local con las nuevas URLs devueltas por el backend.
-      setImages(result.updatedImages);
+      // 3. Actualiza el estado local de forma inteligente, preservando las ediciones.
+      const updatedImagesFromBackend = result.updatedImages;
+      setImages(currentImages => {
+        return currentImages.map(localImage => {
+          // Busca la imagen correspondiente que volvió del backend.
+          const backendImage = updatedImagesFromBackend.find(img => img.id === localImage.id);
+          if (backendImage) {
+            // Si la encuentra, actualiza SOLO la URL y mantiene el resto de las propiedades locales.
+            return { ...localImage, url: backendImage.url };
+          }
+          // Si no la encuentra (no debería pasar), devuelve la imagen local sin cambios.
+          return localImage;
+        });
+      });
       
       // 4. Continúa al siguiente paso del flujo.
       setTimeout(() => {
