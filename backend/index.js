@@ -217,17 +217,55 @@ app.post('/sobrescribir-imagen', upload.single('file'), async (req, res) => {
 app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
   try {
     const { pedidoId } = req.body;
-    if (!req.files || req.files.length === 0) {
+    const incomingFiles = req.files;
+
+    if (!incomingFiles || incomingFiles.length === 0) {
       throw new Error("No se recibieron imágenes.");
     }
     
+    // --- INICIO: NUEVA LÓGICA DE VALIDACIÓN ---
+    
+    // 1. Obtenemos los datos del pedido y del paquete asociado.
     const { data: pedidoData, error: pedidoError } = await supabase
       .from('pedidos')
-      .select('nombre_cliente')
+      .select(`
+        pack_id,
+        nombre_cliente,
+        packs (
+          es_individual,
+          pack_items (
+            cantidad
+          )
+        )
+      `)
       .eq('id', pedidoId)
       .single();
 
-    if (pedidoError) throw new Error("No se pudo encontrar el pedido para nombrar las imágenes.");
+    if (pedidoError || !pedidoData) throw new Error("No se pudo encontrar el pedido o el paquete asociado para la validación.");
+
+    // 2. Si el paquete NO es individual, calculamos los límites.
+    if (!pedidoData.packs.es_individual) {
+      // a. Calculamos el total de fotos permitidas por el paquete.
+      const totalPermitido = pedidoData.packs.pack_items.reduce((sum, item) => sum + item.cantidad, 0);
+      
+      // b. Contamos cuántas imágenes ya tiene el pedido en la base de datos.
+      const { count: imagenesActuales, error: countError } = await supabase
+        .from('imagenes_pedido')
+        .select('*', { count: 'exact', head: true })
+        .eq('pedido_id', pedidoId);
+
+      if (countError) throw new Error("No se pudo verificar la cantidad de imágenes existentes.");
+
+      // c. Verificamos si las nuevas imágenes caben en el cupo restante.
+      const cupoRestante = totalPermitido - imagenesActuales;
+      if (incomingFiles.length > cupoRestante) {
+        // Si no caben, rechazamos la petición con un error claro.
+        return res.status(413).json({ 
+          error: `Intento de subida rechazado. Solo puedes añadir ${cupoRestante} imágenes más a este paquete.` 
+        });
+      }
+    }
+    // --- FIN: NUEVA LÓGICA DE VALIDACIÓN ---
 
     const sanitizedClientName = (pedidoData.nombre_cliente || 'cliente')
       .replace(/ /g, '_')
@@ -240,7 +278,7 @@ app.post('/subir-imagenes', upload.array('images'), async (req, res) => {
     const failedImages = []; // Array para registrar las imágenes que fallen
     
     let index = 0;
-    for (const file of req.files) {
+    for (const file of incomingFiles) {
       try { // El bloque try/catch ahora está DENTRO del bucle
         const optimizedBuffer = await sharp(file.buffer)
           .rotate()

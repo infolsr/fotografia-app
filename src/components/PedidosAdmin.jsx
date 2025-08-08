@@ -18,8 +18,8 @@ const PedidosAdmin = () => {
     const to = from + PEDIDOS_PER_PAGE - 1;
 
     let query = supabase
-      .from("pedidos")
-      .select("*, imagenes_pedido(count)", { count: "exact" })
+      .from("pedidos_con_conteo")
+      .select("*", { count: "exact" }) // Ya no necesitamos el join aquí
       .order("fecha", { ascending: false })
       .range(from, to);
 
@@ -223,7 +223,7 @@ const eliminarImagenesAsociadas = async (pedido) => {
                   <p><strong>ID:</strong> <span className="text-xs text-gray-600">{pedido.id}</span></p>
                   <p><strong>Fecha:</strong> {new Date(pedido.fecha).toLocaleString()}</p>
                   <p><strong>Cliente:</strong> {pedido.nombre_cliente}</p>
-                  <p><strong>Imágenes:</strong> {pedido.imagenes_pedido[0]?.count || 0}</p>
+                  <p><strong>Imágenes:</strong> {pedido.imagenes_vigentes_count || 0}</p>
                   <p><strong>Total:</strong> ${pedido.total ? pedido.total.toLocaleString('es-CL') : '0'}</p>
                   <p><strong>Estado:</strong> <span className="font-semibold">{pedido.status}</span></p>
                 </div>
