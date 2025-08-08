@@ -402,48 +402,32 @@ const getCloudinaryCrop = (img) => {
   };
 };
 
-// --- NUEVO ENDPOINT PARA FINALIZAR IMÁGENES CON TRANSFORMACIONES DE CLOUDINARY ---
+// --- ENDPOINT MODIFICADO PARA FINALIZAR IMÁGENES Y LIMPIAR HUÉRFANAS ---
 app.post('/finalizar-imagenes', async (req, res) => {
   try {
-    const { transformations } = req.body;
-    if (!transformations || !Array.isArray(transformations)) {
-      throw new Error("No se recibió la data de transformaciones.");
+    // Se añade 'pedidoId' que es enviado desde el frontend
+    const { pedidoId, transformations } = req.body;
+    if (!transformations || !Array.isArray(transformations) || !pedidoId) {
+      throw new Error("Faltan datos (pedidoId o transformaciones) en la petición.");
     }
 
+    // --- 1. Proceso de actualización de las imágenes finales (sin cambios) ---
     const updatePromises = transformations.map(async (t) => {
-      // 1. Calcula los parámetros de recorte usando la función de ayuda.
       const cropParams = getCloudinaryCrop(t);
-
-      // 2. Construye el array de transformaciones para Cloudinary.
       const cloudinaryTransformations = [
-        { ...cropParams, crop: 'crop' }, // Aplica el recorte principal
-        { width: 1800, height: 2700, crop: 'limit' } // Limita el tamaño final para impresión
+        { ...cropParams, crop: 'crop' },
+        { width: 1800, height: 2700, crop: 'limit' }
       ];
-
-      if (t.isFlipped) {
-        cloudinaryTransformations.push({ angle: 'hflip' });
-      }
-      if (t.filter === 'bn') {
-        cloudinaryTransformations.push({ effect: 'grayscale' });
-      }
-      if (t.filter === 'sepia') {
-        cloudinaryTransformations.push({ effect: 'sepia' });
-      }
-      if (t.hasBorder) {
-        // Añade un borde blanco del 2.5% del ancho de la imagen.
-        cloudinaryTransformations.push({
-          border: '2.5vw_solid_white',
-          crop: 'limit'
-        });
-      }
-
-      // 3. Genera la nueva URL final.
+      if (t.isFlipped) cloudinaryTransformations.push({ angle: 'hflip' });
+      if (t.filter === 'bn') cloudinaryTransformations.push({ effect: 'grayscale' });
+      if (t.filter === 'sepia') cloudinaryTransformations.push({ effect: 'sepia' });
+      if (t.hasBorder) cloudinaryTransformations.push({ border: '2.5vw_solid_white', crop: 'limit' });
+      
       const finalUrl = cloudinary.url(t.public_id, {
         transformation: cloudinaryTransformations,
         secure: true
       });
 
-      // 4. Actualiza la fila en Supabase con la nueva URL y los datos finales.
       const { data: updatedImage, error } = await supabase
         .from('imagenes_pedido')
         .update({ 
@@ -463,8 +447,26 @@ app.post('/finalizar-imagenes', async (req, res) => {
       return updatedImage;
     });
 
-    // Espera a que todas las actualizaciones se completen.
     const updatedImages = await Promise.all(updatePromises);
+    
+    // --- 2. NUEVO: Proceso de limpieza de imágenes huérfanas ---
+    const finalImageIds = transformations.map(t => t.id);
+
+    // Se llama a la función RPC que creamos en Supabase
+    const { data: aEliminar, error: rpcError } = await supabase.rpc('limpiar_imagenes_huerfanas', {
+      p_pedido_id: pedidoId,
+      ids_de_imagenes_finales: finalImageIds
+    });
+
+    if (rpcError) throw new Error(`Error en la limpieza de la base de datos: ${rpcError.message}`);
+
+    // Si la función encontró imágenes para borrar, las eliminamos de Cloudinary
+    if (aEliminar && aEliminar.length > 0) {
+      const publicIdsToDelete = aEliminar.map(item => item.public_id_eliminado);
+      // Se usa delete_resources para borrar múltiples imágenes de una vez, es más eficiente
+      await cloudinary.api.delete_resources(publicIdsToDelete);
+    }
+    // --- FIN DEL PROCESO DE LIMPIEZA ---
     
     res.json({ success: true, updatedImages });
 
