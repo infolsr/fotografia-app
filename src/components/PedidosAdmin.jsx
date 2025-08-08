@@ -229,7 +229,7 @@ const eliminarImagenesAsociadas = async (pedido) => {
                 </div>
                 <div className="flex flex-col space-y-2 w-full sm:w-auto mt-4 sm:mt-0">
                     {(() => {
-                        const hayImagenes = (pedido.imagenes_pedido[0]?.count || 0) > 0;
+                        const hayImagenes = (pedido.imagenes_vigentes_count || 0) > 0;
                         const isPagado = pedido.status === 'pagado';
 
                         if (!hayImagenes) return null;
