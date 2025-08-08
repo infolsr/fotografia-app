@@ -218,7 +218,12 @@ useEffect(() => {
     setSelectedPackId("");
     setStep(1);
   };
-
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
   
   // 4. FUNCIÓN DE ANULACIÓN Y RESETEO (ROBUSTA)
   const handleResetAndStartOver = async () => {
@@ -298,6 +303,12 @@ useEffect(() => {
               <div className="space-x-4">
                 <Link to="/mis-pedidos" className="text-sm text-luitania-sage underline mt-4 inline-block">Mis Pedidos</Link>
                 <Link to="/admin" className="text-sm text-luitania-sage underline mt-4 inline-block">Panel de Administración</Link>
+                                <button 
+                  onClick={handleLogout} 
+                  className="text-sm text-red-600 underline"
+                >
+                  Cerrar Sesión
+                </button>
               </div>
             </header>
             
