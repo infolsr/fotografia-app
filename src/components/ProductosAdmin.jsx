@@ -84,7 +84,7 @@ const EditPackModal = ({ pack, onSave, onClose }) => {
               />
             </div>
             <div className="text-center">
-                <label className="block text-xs font-medium text-gray-500">Muestra</glabel>
+                <label className="block text-xs font-medium text-gray-500">Muestra</label>
                 <div 
                   className="mt-1 w-12 h-10 rounded-md border" 
                   style={{ backgroundColor: formData.color_hex || '#FFFFFF' }}
