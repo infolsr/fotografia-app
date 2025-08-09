@@ -4,11 +4,10 @@ import { supabase } from "../lib/supabaseClient";
 // --- INICIO: COMPONENTE MODAL MODIFICADO ---
 // Ahora puede manejar tanto la creación (pack=null) como la edición (pack=objeto)
 const EditPackModal = ({ pack, onSave, onClose }) => {
+  const EditPackModal = ({ pack, onSave, onClose }) => {
   const [formData, setFormData] = useState(null);
 
   useEffect(() => {
-    // Si recibe un 'pack', está en modo edición.
-    // Si 'pack' es nulo, está en modo creación y se inicializa un formulario vacío.
     if (pack) {
       setFormData({ ...pack });
     } else {
@@ -16,6 +15,8 @@ const EditPackModal = ({ pack, onSave, onClose }) => {
         nombre_pack: "",
         precio: 0,
         descripcion: "",
+        color_hex: "#FFFFFF", // Color por defecto
+        imagen_url: "",
         pack_items: [{ formato_impresion: '10x15', cantidad: 1, es_regalo: false }],
       });
     }
@@ -64,6 +65,22 @@ const EditPackModal = ({ pack, onSave, onClose }) => {
             <label className="block text-sm font-medium text-gray-700">Descripción</label>
             <textarea name="descripcion" value={formData.descripcion} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" rows="3"></textarea>
           </div>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700">Color de Fondo (Hex)</label>
+              <input type="text" name="color_hex" placeholder="#FFFFFF" value={formData.color_hex || ""} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
+            </div>
+            <div
+              className="w-12 h-10 rounded-md border"
+              style={{ backgroundColor: formData.color_hex || '#FFFFFF' }}
+            ></div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">URL de la Imagen del Paquete</label>
+            <input type="text" name="imagen_url" placeholder="https://..." value={formData.imagen_url || ""} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
+          </div>
+        </div>
         </div>
 
         <div className="mt-6">
@@ -133,36 +150,47 @@ const ProductosAdmin = () => {
     setEditingPack(null);
   };
 
+// En: src/components/ProductosAdmin.jsx
+
   const handleSave = async (packData) => {
+    // Modo Edición
     if (packData.id) {
-      // --- LÓGICA DE EDICIÓN (existente) ---
       const { error } = await supabase.rpc('actualizar_pack_completo', {
         pack_id_to_update: packData.id,
         new_nombre: packData.nombre_pack,
         new_precio: packData.precio,
         new_descripcion: packData.descripcion,
+        // ✅ Se añaden los nuevos campos a la llamada
+        new_color_hex: packData.color_hex,
+        new_imagen_url: packData.imagen_url,
         new_items: packData.pack_items.map(({ formato_impresion, cantidad, es_regalo }) => ({
           formato_impresion, cantidad: Number(cantidad), es_regalo
         }))
       });
-      if (error) alert("Error guardando el paquete.");
+      if (error) alert("Error guardando el paquete: " + error.message);
+    
+    // Modo Creación
     } else {
-      // --- LÓGICA DE CREACIÓN (nueva) ---
-      const { nombre_pack, precio, descripcion, pack_items } = packData;
-      // 1. Inserta el paquete principal
+      const { nombre_pack, precio, descripcion, color_hex, imagen_url, pack_items } = packData;
+      
       const { data: newPack, error: packError } = await supabase
         .from("packs")
-        .insert({ nombre_pack, precio, descripcion })
+        .insert({ 
+          nombre_pack, 
+          precio, 
+          descripcion,
+          // ✅ Se añaden los nuevos campos a la inserción
+          color_hex,
+          imagen_url
+        })
         .select()
         .single();
       
       if (packError) {
-        alert("Error creando el nuevo paquete.");
-        console.error(packError);
+        alert("Error creando el nuevo paquete: " + packError.message);
         return;
       }
       
-      // 2. Prepara los ítems con el ID del nuevo paquete
       const newItems = pack_items.map(item => ({
         pack_id: newPack.id,
         formato_impresion: item.formato_impresion,
@@ -170,9 +198,8 @@ const ProductosAdmin = () => {
         es_regalo: item.es_regalo,
       }));
 
-      // 3. Inserta los ítems
       const { error: insertError } = await supabase.from("pack_items").insert(newItems);
-      if (insertError) alert("Error guardando los ítems del paquete.");
+      if (insertError) alert("Error guardando los ítems del paquete: " + insertError.message);
     }
     
     handleCloseModal();
