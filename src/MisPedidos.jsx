@@ -38,31 +38,37 @@ const MisPedidos = () => {
   }, [fetchPedidos]);
 
   // 2. NUEVA FUNCIÓN PARA CONTINUAR UN PEDIDO EN CURSO
-  const handleContinueOrder = async (pedido) => {
-    // 1. Validamos que el pedido tenga la información necesaria.
+    const handleContinueOrder = async (pedido) => {
     if (!pedido.pack_id) {
-      alert("Error: No se puede recuperar este pedido porque no tiene un paquete asociado. Por favor, inicia uno nuevo.");
+      alert("Error: No se puede recuperar este pedido porque no tiene un paquete asociado.");
       return;
     }
     
     setActionLoading(pedido.id);
     try {
-      const { data: images, error: imagesError } = await supabase
+      // Obtenemos todas las imágenes del pedido
+      const { data: imagesFromDB, error: imagesError } = await supabase
         .from('imagenes_pedido')
-        .select('*')
+        .select('*') // Obtenemos todas las columnas, incluyendo las nuevas
         .eq('pedido_id', pedido.id);
 
       if (imagesError) throw imagesError;
 
-      // 2. Construimos el objeto usando el pack_id directamente. ¡No más "adivinanzas"!
+      // ✅ MAPEO CLAVE: Convertimos los nombres de la base de datos a los del estado.
+      const images = imagesFromDB.map(img => ({
+        ...img,
+        // Si hay datos de transformaciones guardados, los usamos. Si no, valores por defecto.
+        imagePosition: img.transformaciones || { x: 0, y: 0 },
+        zoom: img.zoom_image || 1,
+      }));
+
       const pedidoEnProgreso = {
         pedidoId: pedido.id,
-        images: images || [],
-        selectedPackId: pedido.pack_id, // <-- Se usa el ID guardado
+        images: images, // Usamos el array de imágenes ya mapeado
+        selectedPackId: pedido.pack_id,
         step: 2,
       };
 
-      // 3. Guardamos en localStorage y navegamos.
       localStorage.setItem('pedidoEnProgreso', JSON.stringify(pedidoEnProgreso));
       navigate('/');
 

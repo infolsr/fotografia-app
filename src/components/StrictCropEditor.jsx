@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import EditModal from "./EditModal";
 import CropPreview from './CropPreview';
 import { supabase } from '../lib/supabaseClient';
@@ -14,6 +14,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   const [editingImageIndex, setEditingImageIndex] = useState(null);
   const isModalOpen = editingImageIndex !== null;
   const [showQRModal, setShowQRModal] = useState(false);
+  const debounceTimeout = useRef(null); // Ref para gestionar el temporizador del debounce
 
   // --- ORDEN CORRECTO DE LOS useMemo ---
 
@@ -130,16 +131,47 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
     };
   }, [pedidoId, setImages]); // Dependencias para el efecto.
 
+  // Esta es la función que guarda los cambios en Supabase.
+  const saveEditsToDB = useCallback(async (imageId, edits) => {
+    const { error } = await supabase
+      .from('imagenes_pedido')
+      .update({ 
+        transformaciones: edits.imagePosition, 
+        zoom_image: edits.zoom 
+      })
+      .eq('id', imageId);
+
+    if (error) {
+      console.error("Error en autoguardado:", error.message);
+    }
+  }, []);
+
   // --- MANEJADORES DE EVENTOS ---
   const handleDeleteImage = (indexToDelete) => {
     setImages(images.filter((_, index) => index !== indexToDelete));
   };
 
+  // Esta es tu función existente, ahora con la llamada al autoguardado.
   const handleImageUpdate = useCallback((index, updates) => {
+    // 1. Actualiza el estado local inmediatamente para una UI fluida.
     setImages(currentImages =>
       currentImages.map((img, i) => (i === index ? { ...img, ...updates } : img))
     );
-  }, [setImages]);
+
+    // 2. Prepara y ejecuta el guardado en la base de datos con debounce.
+    const imageToUpdate = images[index];
+    if (imageToUpdate && imageToUpdate.id) {
+      // Limpia el temporizador anterior si el usuario sigue haciendo cambios.
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+      // Establece un nuevo temporizador. La función de guardado solo se ejecutará
+      // 500ms después de que el usuario deje de hacer cambios.
+      debounceTimeout.current = setTimeout(() => {
+        saveEditsToDB(imageToUpdate.id, { ...imageToUpdate, ...updates });
+      }, 500);
+    }
+  }, [images, setImages, saveEditsToDB]);
 
   const handleItemAssignment = (imageId, newPackItemId) => {
     const allPackItems = [regularItem, ...giftItems].filter(Boolean);
