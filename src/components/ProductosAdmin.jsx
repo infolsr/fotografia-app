@@ -4,7 +4,6 @@ import { supabase } from "../lib/supabaseClient";
 // --- INICIO: COMPONENTE MODAL MODIFICADO ---
 // Ahora puede manejar tanto la creación (pack=null) como la edición (pack=objeto)
 const EditPackModal = ({ pack, onSave, onClose }) => {
-  const EditPackModal = ({ pack, onSave, onClose }) => {
   const [formData, setFormData] = useState(null);
 
   useEffect(() => {
