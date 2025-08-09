@@ -73,10 +73,23 @@ const EditPackModal = ({ pack, onSave, onClose }) => {
           </div>
           <div className="flex gap-4 items-center">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700">Color de Fondo (Hex)</label>
-              <input type="text" name="color_hex" placeholder="#FFFFFF" value={formData.color_hex || ""} onChange={handleChange} className="mt-1 block w-full border p-2 rounded-md"/>
+              <label className="block text-sm font-medium text-gray-700">Color de Fondo</label>
+              {/* Se cambia el type a "color" */}
+              <input 
+                type="color" 
+                name="color_hex" 
+                value={formData.color_hex || "#FFFFFF"} 
+                onChange={handleChange} 
+                className="mt-1 h-10 w-full cursor-pointer rounded-md border border-gray-300 bg-white p-1 shadow-sm"
+              />
             </div>
-            <div className="w-12 h-10 rounded-md border" style={{ backgroundColor: formData.color_hex || '#FFFFFF' }}></div>
+            <div className="text-center">
+                <label className="block text-xs font-medium text-gray-500">Muestra</glabel>
+                <div 
+                  className="mt-1 w-12 h-10 rounded-md border" 
+                  style={{ backgroundColor: formData.color_hex || '#FFFFFF' }}
+                ></div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">URL de la Imagen del Paquete</label>
