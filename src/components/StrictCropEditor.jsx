@@ -62,9 +62,13 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   }, [images, regularItem, setImages]);
 
   // --- useEffect para cargar dimensiones de la imagen ---
+// En: src/components/StrictCropEditor.jsx
+// REEMPLAZA EL useEffect COMPLETO
+
   useEffect(() => {
     const imagesToInitialize = images.filter(img => img.url_original && !img.naturalWidth);
     if (imagesToInitialize.length === 0) return;
+
     const initializationPromises = imagesToInitialize.map(imageToInit => {
       return new Promise((resolve) => {
         const imgLoader = new Image();
@@ -72,15 +76,20 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
         imgLoader.src = imageToInit.url_original || imageToInit.url;
         imgLoader.onload = () => {
           const { naturalWidth, naturalHeight } = imgLoader;
+          
+          // ✅ CORRECCIÓN CLAVE:
+          // Ya no se resetean las propiedades. Solo se añaden las dimensiones.
+          // Las ediciones existentes en 'imageToInit' (filter, imagePosition, etc.) se mantienen.
           resolve({
-            ...imageToInit, naturalWidth, naturalHeight,
-            imagePosition: { x: 0, y: 0 }, zoom: 1,
-            filter: 'ninguno', hasBorder: false, isFlipped: false
+            ...imageToInit,
+            naturalWidth,
+            naturalHeight,
           });
         };
-        imgLoader.onerror = () => resolve(imageToInit);
+        imgLoader.onerror = () => resolve(imageToInit); // Si falla, devuelve la imagen original
       });
     });
+
     Promise.all(initializationPromises).then(initializedImages => {
       setImages(currentImages =>
         currentImages.map(originalImg => {
@@ -89,7 +98,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
         })
       );
     });
-  }, [images, setImages]);
+  }, [images, setImages]); // Las dependencias se mantienen
 
   // En: src/components/StrictCropEditor.jsx
 
@@ -133,6 +142,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
 
   // Esta es la función que guarda los cambios en Supabase.
   const saveEditsToDB = useCallback(async (imageId, edits) => {
+    console.log("💾 INTENTANDO GUARDAR EN BD:", { imageId, edits });
     const { error } = await supabase
       .from('imagenes_pedido')
       .update({ 
@@ -145,7 +155,7 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
       .eq('id', imageId);
 
     if (error) {
-      console.error("Error en autoguardado:", error.message);
+      console.error("❌ ERROR DEVUELTO POR SUPABASE:", error.message);
     }
   }, []);
 
@@ -156,25 +166,33 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
 
   // Esta es tu función existente, ahora con la llamada al autoguardado.
   const handleImageUpdate = useCallback((index, updates) => {
-    // 1. Actualiza el estado local inmediatamente para una UI fluida.
-    setImages(currentImages =>
-      currentImages.map((img, i) => (i === index ? { ...img, ...updates } : img))
-    );
+    // Usamos la forma funcional de 'setImages' para garantizar que siempre
+    // trabajemos con el estado más reciente, evitando el "stale state".
+    setImages(currentImages => {
+      const imageToUpdate = currentImages[index];
 
-    // 2. Prepara y ejecuta el guardado en la base de datos con debounce.
-    const imageToUpdate = images[index];
-    if (imageToUpdate && imageToUpdate.id) {
-      // Limpia el temporizador anterior si el usuario sigue haciendo cambios.
+      // Si por alguna razón la imagen no existe, detenemos para evitar errores.
+      if (!imageToUpdate || !imageToUpdate.id) {
+        return currentImages;
+      }
+
+      // 1. Creamos el objeto completo con el estado final de la imagen.
+      const nextImageState = { ...imageToUpdate, ...updates };
+
+      // 2. Preparamos el autoguardado (debounce) con el estado ya actualizado.
       if (debounceTimeout.current) {
         clearTimeout(debounceTimeout.current);
       }
-      // Establece un nuevo temporizador. La función de guardado solo se ejecutará
-      // 500ms después de que el usuario deje de hacer cambios.
+
       debounceTimeout.current = setTimeout(() => {
-        saveEditsToDB(imageToUpdate.id, { ...imageToUpdate, ...updates });
-      }, 500);
-    }
-  }, [images, setImages, saveEditsToDB]);
+        // Pasamos el objeto completo a la función de guardado.
+        saveEditsToDB(nextImageState.id, nextImageState);
+      }, 500); // 500ms de espera
+
+      // 3. Devolvemos el nuevo array de imágenes para que React actualice la UI.
+      return currentImages.map((img, i) => (i === index ? nextImageState : img));
+    });
+  }, [setImages, saveEditsToDB]);
 
   const handleItemAssignment = (imageId, newPackItemId) => {
     const allPackItems = [regularItem, ...giftItems].filter(Boolean);

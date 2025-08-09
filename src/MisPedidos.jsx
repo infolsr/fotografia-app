@@ -38,7 +38,9 @@ const MisPedidos = () => {
   }, [fetchPedidos]);
 
   // 2. NUEVA FUNCIÓN PARA CONTINUAR UN PEDIDO EN CURSO
-    const handleContinueOrder = async (pedido) => {
+// En: src/MisPedidos.jsx
+
+  const handleContinueOrder = async (pedido) => {
     if (!pedido.pack_id) {
       alert("Error: No se puede recuperar este pedido porque no tiene un paquete asociado.");
       return;
@@ -46,18 +48,19 @@ const MisPedidos = () => {
     
     setActionLoading(pedido.id);
     try {
-      // Obtenemos todas las imágenes del pedido
+      // 1. Obtenemos todas las imágenes del pedido desde la base de datos.
       const { data: imagesFromDB, error: imagesError } = await supabase
         .from('imagenes_pedido')
-        .select('*') // Obtenemos todas las columnas, incluyendo las nuevas
+        .select('*') // Obtenemos todas las columnas, incluyendo las de edición.
         .eq('pedido_id', pedido.id);
 
       if (imagesError) throw imagesError;
 
-      // ✅ MAPEO CLAVE: Convertimos los nombres de la base de datos a los del estado.
+      // 2. ✅ TRADUCCIÓN CLAVE: Mapeamos los datos de la BD a los nombres del estado.
+      //    Esta es la misma lógica que ya usamos en otras partes del código.
       const images = imagesFromDB.map(img => ({
         ...img,
-        // Si hay datos de transformaciones guardados, los usamos. Si no, valores por defecto.
+        // Si hay datos de edición guardados, los usamos. Si no, valores por defecto.
         imagePosition: img.transformaciones || { x: 0, y: 0 },
         zoom: img.zoom_image || 1,
         filter: img.filtro || 'ninguno',
@@ -65,10 +68,11 @@ const MisPedidos = () => {
         isFlipped: img.espejado || false
       }));
 
+      // 3. Construimos el objeto para localStorage con los datos ya traducidos.
       const pedidoEnProgreso = {
         pedidoId: pedido.id,
-        images: images, // Usamos el array de imágenes ya mapeado
-        selectedPackId: pedido.pack_id,
+        images: images, // Usamos el array de imágenes ya formateado.
+        selectedPackId: pedido.pack_id.toString(), // Aseguramos que sea string.
         step: 2,
       };
 
