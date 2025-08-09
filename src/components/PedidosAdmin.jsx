@@ -226,6 +226,17 @@ const eliminarImagenesAsociadas = async (pedido) => {
                   <p><strong>Imágenes:</strong> {pedido.imagenes_vigentes_count || 0}</p>
                   <p><strong>Total:</strong> ${pedido.total ? pedido.total.toLocaleString('es-CL') : '0'}</p>
                   <p><strong>Estado:</strong> <span className="font-semibold">{pedido.status}</span></p>
+                  {pedido.direccion_envio && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 text-sm">
+                      <h4 className="font-semibold text-blue-700 mb-1">🚚 Envío a Domicilio</h4>
+                      <div className="text-gray-600 space-y-1 pl-2">
+                        <p><strong>RUT:</strong> {pedido.direccion_envio.rut}</p>
+                        <p><strong>Dirección:</strong> {pedido.direccion_envio.direccion}</p>
+                        <p><strong>Comuna:</strong> {pedido.direccion_envio.comuna}</p>
+                        <p><strong>Región:</strong> {pedido.direccion_envio.region}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col space-y-2 w-full sm:w-auto mt-4 sm:mt-0">
                     {(() => {
