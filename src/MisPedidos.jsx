@@ -60,6 +60,9 @@ const MisPedidos = () => {
         // Si hay datos de transformaciones guardados, los usamos. Si no, valores por defecto.
         imagePosition: img.transformaciones || { x: 0, y: 0 },
         zoom: img.zoom_image || 1,
+        filter: img.filtro || 'ninguno',
+        hasBorder: img.borde || false,
+        isFlipped: img.espejado || false
       }));
 
       const pedidoEnProgreso = {

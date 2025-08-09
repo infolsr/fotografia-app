@@ -137,7 +137,10 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
       .from('imagenes_pedido')
       .update({ 
         transformaciones: edits.imagePosition, 
-        zoom_image: edits.zoom 
+        zoom_image: edits.zoom,
+        filtro: edits.filter,
+        borde: edits.hasBorder,
+        espejado: edits.isFlipped
       })
       .eq('id', imageId);
 
@@ -236,13 +239,18 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
       const updatedImagesFromBackend = result.updatedImages;
       setImages(currentImages => {
         return currentImages.map(localImage => {
-          // Busca la imagen correspondiente que volvió del backend.
           const backendImage = updatedImagesFromBackend.find(img => img.id === localImage.id);
           if (backendImage) {
-            // Si la encuentra, actualiza SOLO la URL y mantiene el resto de las propiedades locales.
-            return { ...localImage, url: backendImage.url };
+            // Mapeamos las propiedades de la BD a las del estado, asegurando que nada se pierda.
+            return { 
+              ...localImage, // Mantenemos la base de la imagen local (paneo, zoom, etc.)
+              url: backendImage.url, // Actualizamos la URL con la de Cloudinary
+              // Mapeamos explícitamente los valores que vienen de la base de datos
+              filter: backendImage.filtro || 'ninguno',
+              hasBorder: backendImage.borde || false,
+              isFlipped: backendImage.espejado || false
+            };
           }
-          // Si no la encuentra (no debería pasar), devuelve la imagen local sin cambios.
           return localImage;
         });
       });
