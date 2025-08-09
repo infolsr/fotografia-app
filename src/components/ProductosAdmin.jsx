@@ -45,42 +45,45 @@ const EditPackModal = ({ pack, onSave, onClose }) => {
 
   if (!formData) return null;
 
-  return (
+   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
-        {/* El título cambia dependiendo del modo */}
-        <h2 className="text-xl font-bold mb-4">{pack ? `Editando Paquete: ${pack.nombre_pack}` : "Crear Nuevo Paquete"}</h2>
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4">{pack ? `Editando: ${pack.nombre_pack}` : "Crear Nuevo Paquete"}</h2>
         
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Nombre del Paquete</label>
-            <input type="text" name="nombre_pack" value={formData.nombre_pack} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Precio</label>
-            <input type="number" name="precio" value={formData.precio} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Descripción</label>
-            <textarea name="descripcion" value={formData.descripcion} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" rows="3"></textarea>
+            <input type="text" name="nombre_pack" value={formData.nombre_pack} onChange={handleChange} className="mt-1 block w-full border p-2 rounded-md"/>
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700">Color de Fondo (Hex)</label>
-              <input type="text" name="color_hex" placeholder="#FFFFFF" value={formData.color_hex || ""} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
+              <label className="block text-sm font-medium text-gray-700">Precio</label>
+              <input type="number" name="precio" value={formData.precio} onChange={handleChange} className="mt-1 block w-full border p-2 rounded-md"/>
             </div>
-            <div
-              className="w-12 h-10 rounded-md border"
-              style={{ backgroundColor: formData.color_hex || '#FFFFFF' }}
-            ></div>
+            <div className="flex items-end pb-2">
+               <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="es_individual" checked={formData.es_individual || false} onChange={handleChange} /> 
+                Es Individual
+              </label>
+            </div>
           </div>
-
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Descripción</label>
+            <textarea name="descripcion" value={formData.descripcion} onChange={handleChange} className="mt-1 block w-full border p-2 rounded-md" rows="3"></textarea>
+          </div>
+          <div className="flex gap-4 items-center">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700">Color de Fondo (Hex)</label>
+              <input type="text" name="color_hex" placeholder="#FFFFFF" value={formData.color_hex || ""} onChange={handleChange} className="mt-1 block w-full border p-2 rounded-md"/>
+            </div>
+            <div className="w-12 h-10 rounded-md border" style={{ backgroundColor: formData.color_hex || '#FFFFFF' }}></div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">URL de la Imagen del Paquete</label>
-            <input type="text" name="imagen_url" placeholder="https://..." value={formData.imagen_url || ""} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"/>
+            <input type="text" name="imagen_url" placeholder="https://..." value={formData.imagen_url || ""} onChange={handleChange} className="mt-1 block w-full border p-2 rounded-md"/>
           </div>
         </div>
-        </div>
+        {/* LA ETIQUETA </div> EXTRA QUE CAUSABA EL ERROR FUE ELIMINADA DE AQUÍ */}
 
         <div className="mt-6">
           <h3 className="font-semibold mb-2">Contenido del Paquete</h3>
@@ -90,7 +93,7 @@ const EditPackModal = ({ pack, onSave, onClose }) => {
                 <input type="text" name="formato_impresion" placeholder="Formato" value={item.formato_impresion} onChange={(e) => handleItemChange(index, e)} className="p-1 border rounded w-1/3"/>
                 <input type="number" name="cantidad" placeholder="Cantidad" value={item.cantidad} onChange={(e) => handleItemChange(index, e)} className="p-1 border rounded w-1/4"/>
                 <label className="flex items-center gap-1 text-sm"><input type="checkbox" name="es_regalo" checked={item.es_regalo} onChange={(e) => handleItemChange(index, e)} /> Es Regalo</label>
-                <button onClick={() => removeItem(index)} className="text-red-500 font-bold">✕</button>
+                <button onClick={() => removeItem(index)} className="ml-auto text-red-500 font-bold px-2">✕</button>
               </div>
             ))}
           </div>
