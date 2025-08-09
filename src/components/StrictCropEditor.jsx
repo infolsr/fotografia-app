@@ -288,70 +288,47 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
   const handleOpenEditModal = (index) => setEditingImageIndex(index);
   const handleCloseEditModal = () => setEditingImageIndex(null);
 
+// En: src/components/StrictCropEditor.jsx
+
   return (
     <>
-      {isLoading && (<div className="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50"><CircularProgress progress={uploadProgress} /></div>)}
+      {isLoading && (<div className="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50"><CircularProgress progress={uploadProgress} message={"Finalizando..."} isProcessing={true} /></div>)}
       <div className={`space-y-6 max-w-7xl mx-auto ${isLoading ? 'blur-sm pointer-events-none' : ''}`}>
+        
         <div className="bg-white p-4 rounded-lg shadow-md border text-center">
           <h2 className="text-xl font-semibold">{selectedPack?.nombre_pack || ''}</h2>
           {selectedPack?.pack_items && (
             <div className="text-sm text-gray-600 mt-2">
               <p className="font-semibold">Contenido del paquete:</p>
               {selectedPack.pack_items.map(item => (
-                <p key={item.id}>
-                  - {item.cantidad}x {item.formato_impresion}
-                  {item.es_regalo && <span className="ml-2 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2 py-0.5 rounded-full">Regalo</span>}
-                </p>
+                <p key={item.id}>- {item.cantidad}x {item.formato_impresion} {item.es_regalo && <span className="ml-2 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2 py-0.5 rounded-full">Regalo</span>}</p>
               ))}
             </div>
           )}
           {selectedPack && !selectedPack.es_individual && (
             <div className="mt-4 px-4">
               <div className="flex justify-between items-center text-sm font-semibold mb-1">
-                <span>Progreso Total del Paquete</span>
+                <span>Progreso Total</span>
                 <span>{images.length} de {totalRequiredCount}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-green-500 h-2.5 rounded-full transition-all duration-500" 
-                  style={{ width: `${(images.length / totalRequiredCount) * 100}%` }}
-                ></div>
-              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${(images.length / totalRequiredCount) * 100}%` }}></div></div>
             </div>
           )}
-            {/* 👇 INICIO DEL BLOQUE AÑADIDO */}
-            {/* Nuevo bloque para el CONTADOR en paquetes individuales */}
-            {selectedPack && selectedPack.es_individual && (
-              <div className="mt-4 text-center">
-                <p className="text-lg font-semibold text-luitania-textbrown">
-                  Fotos Subidas: <span className="text-2xl font-lora text-luitania-sage">{images.length}</span>
-                </p>
-              </div>
-            )}
-            {/* 👆 FIN DEL BLOQUE AÑADIDO */}
+          {selectedPack && selectedPack.es_individual && (
+            <div className="mt-4 text-center"><p className="text-lg font-semibold text-luitania-textbrown">Fotos Subidas: <span className="text-2xl font-lora text-luitania-sage">{images.length}</span></p></div>
+          )}
         </div>
+
         <div className="text-center flex justify-center items-center gap-4">
-          <label className="btn-secondary cursor-pointer">
-            + Agregar más fotos
-            <input 
-              type="file" 
-              multiple
-              accept="image/*" 
-              className="hidden"
-              onChange={onAddImages} 
-            />
-          </label>
+          <label className="btn-secondary cursor-pointer">+ Agregar más fotos<input type="file" multiple accept="image/*" className="hidden" onChange={onAddImages} /></label>
           <button onClick={() => setShowQRModal(true)} className="btn-secondary">Añadir desde móvil (QR)</button>
         </div>
+        
+        {/* ✅ AQUÍ ESTÁ EL RECUADRO EXPLICATIVO */}
         <div className="max-w-4xl mx-auto p-4 bg-luitania-sage/10 border border-luitania-sage/20 rounded-lg text-center my-6">
-          <p className="text-sm text-luitania-textbrown/90">
-            <strong className="font-semibold">¡Ajusta tu encuadre!</strong> A veces tu foto es más ancha o más alta que el papel. Para evitar bordes blancos, la ajustamos para que lo cubra todo.
-          </p>
-          <p className="text-sm text-luitania-textbrown/80 mt-1">
-            👇 Simplemente <strong>arrastra la imagen</strong> en cada miniatura para seleccionar la parte que más te guste.
-          </p>
+          <p className="text-sm text-luitania-textbrown/90"><strong className="font-semibold">¡Ajusta tu encuadre!</strong> A veces tu foto es más ancha o más alta que el papel. Para evitar bordes blancos, la ajustamos para que lo cubra todo.</p>
+          <p className="text-sm text-luitania-textbrown/80 mt-1">👇 Simplemente <strong>arrastra la imagen</strong> en cada miniatura para seleccionar la parte que más te guste.</p>
         </div>
-        {/* El banner de regalos obsoleto ha sido eliminado */}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
           {images.map((img, i) => {
@@ -388,56 +365,30 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
                       onChange={(e) => handleItemAssignment(img.id, parseInt(e.target.value, 10))}
                       className="w-full border-gray-300 rounded-md shadow-sm p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
                     >
-                      {regularItem && (
-                        <option value={regularItem.id}>
-                          Foto {regularItem.formato_impresion}
-                        </option>
-                      )}
-                      {giftItems.map(gift => (
-                        <option key={gift.id} value={gift.id}>
-                          Regalo: {gift.formato_impresion}
-                        </option>
-                      ))}
+                      {regularItem && (<option value={regularItem.id}>Foto {regularItem.formato_impresion}</option>)}
+                      {giftItems.map(gift => (<option key={gift.id} value={gift.id}>Regalo: {gift.formato_impresion}</option>))}
                     </select>
                   </div>
-
                   <div className="border-t pt-3 text-center">
-                    <button 
-                      onClick={() => handleOpenEditModal(i)} 
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      Más Opciones...
-                    </button>
+                    <button onClick={() => handleOpenEditModal(i)} className="text-sm text-blue-600 hover:underline">Más Opciones...</button>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
+        
         <div className="col-span-full mt-4 pb-8 flex flex-col items-center justify-center gap-4">
-          <button 
-            onClick={handleConfirmAndContinue} 
-            className="btn-primary"
-            disabled={isConfirmDisabled}
-          >
+          <button onClick={handleConfirmAndContinue} className="btn-primary" disabled={isConfirmDisabled}>
             Confirmar y Continuar
           </button>
-
-                  {/* 3. AÑADE ESTE NUEVO BOTÓN AQUÍ */}
-        <button 
-          onClick={onReset} 
-          className="text-sm text-red-600 hover:underline"
-        >
-          Anular y Empezar de Nuevo
-        </button>
-        
-          {isConfirmDisabled && (
-            <p className="text-xs text-luitania-textbrown/60 mt-2">
-              Debes subir todas las imágenes de tu paquete para poder continuar.
-            </p>
-          )}
+          <button onClick={onReset} className="text-sm text-red-600 hover:underline">
+            Anular y Empezar de Nuevo
+          </button>
+          {isConfirmDisabled && (<p className="text-xs text-luitania-textbrown/60 mt-2">Debes subir todas las imágenes de tu paquete para poder continuar.</p>)}
         </div>
       </div>
+
       {showQRModal && (<RemoteUploader pedidoId={pedidoId} onClose={() => setShowQRModal(false)} />)}
       {isModalOpen && (<EditModal imageData={images[editingImageIndex]} onSave={(customizations) => handleImageUpdate(editingImageIndex, customizations)} onClose={handleCloseEditModal} />)}
     </>
