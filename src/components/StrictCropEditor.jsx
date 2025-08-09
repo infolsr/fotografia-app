@@ -343,24 +343,6 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
           </label>
           <button onClick={() => setShowQRModal(true)} className="btn-secondary">Añadir desde móvil (QR)</button>
         </div>
-        // En: src/components/StrictCropEditor.jsx
-
-        {/* ... tu div con los botones de añadir fotos ... */}
-        <div className="text-center flex justify-center items-center gap-4">
-          <label className="btn-secondary cursor-pointer">
-            + Agregar más fotos
-            <input 
-              type="file" 
-              multiple
-              accept="image/*" 
-              className="hidden"
-              onChange={onAddImages} 
-            />
-          </label>
-          <button onClick={() => setShowQRModal(true)} className="btn-secondary">Añadir desde móvil (QR)</button>
-        </div>
-        
-        {/* ✅ INICIO: Bloque Explicativo Añadido */}
         <div className="max-w-4xl mx-auto p-4 bg-luitania-sage/10 border border-luitania-sage/20 rounded-lg text-center my-6">
           <p className="text-sm text-luitania-textbrown/90">
             <strong className="font-semibold">¡Ajusta tu encuadre!</strong> A veces tu foto es más ancha o más alta que el papel. Para evitar bordes blancos, la ajustamos para que lo cubra todo.
@@ -369,11 +351,6 @@ const StrictCropEditor = ({ images, setImages, selectedPackId, productos, pedido
             👇 Simplemente <strong>arrastra la imagen</strong> en cada miniatura para seleccionar la parte que más te guste.
           </p>
         </div>
-        {/* ✅ FIN: Bloque Explicativo Añadido */}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
-          {images.map((img, i) => {
-          // ... el resto de tu código se mantiene igual
         {/* El banner de regalos obsoleto ha sido eliminado */}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
